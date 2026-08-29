@@ -29,6 +29,19 @@ st.markdown(
 | **PPDA** | Pases del rival en su zona de construcción (su 60 % inicial) por cada acción defensiva propia (entradas, intercepciones, faltas) en campo contrario. Más bajo = presión más intensa |
 | **Presiones/partido** | Eventos de presión de StatsBomb por partido |
 
+#### Encaje jugador–equipo
+
+| Componente | Definición |
+|---|---|
+| **Estilo del equipo** | Tres ejes z-score entre equipos: posesión, presión (PPDA invertido + presiones/partido) y verticalidad (cuota de pases progresivos en juego) |
+| **Rasgos del jugador** | Métricas per-90 estandarizadas (z-score) dentro de su grupo posicional |
+| **Componente de estilo** | `z_equipo · afinidad · z_jugador`, con la matriz de afinidad documentada en `fit.py` (un equipo presionante demanda presiones y recuperaciones; uno posesivo, fiabilidad y progresión; uno vertical, conducción y regate) |
+| **Mejora del puesto** | Percentil medio del jugador en las métricas clave de su grupo (las del radar) menos el nivel medio del mismo grupo en el equipo de destino |
+| **Encaje (0-100)** | Percentil de la media de ambos componentes estandarizados dentro del conjunto comparado |
+
+El encaje ordena candidatos *dentro de la competición cargada*; no considera
+edad, precio, rol táctico fino ni contexto de club.
+
 #### Limitaciones conocidas
 
 - Los percentiles son válidos *dentro de la competición analizada*.

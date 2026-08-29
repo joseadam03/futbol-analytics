@@ -28,6 +28,10 @@ Multipágina, con navegación propia:
   pases progresivos/clave, tiros con tamaño ∝ xG) y perfiles similares con foto.
 - **Comparar** — radar superpuesto de dos jugadores (por defecto, el más similar)
   con tabla de valores y percentiles lado a lado.
+- **Encaje** — motor de encaje jugador–equipo: a qué equipos les encaja un
+  jugador y qué fichajes le encajan a un equipo, cruzando el estilo del equipo
+  (posesión, presión, verticalidad) con los rasgos per-90 del jugador y la
+  mejora que aporta al nivel actual del puesto.
 - **Equipos** — posesión, **PPDA** (intensidad de presión), npxG a favor y en
   contra por partido, y dispersión posesión vs. dominio.
 - **Competición** — dispersión interactiva de todos los jugadores (ejes a elegir,
@@ -128,12 +132,13 @@ cálculos, y los penaltis dentro del juego de las métricas de tiro.
 ```
 streamlit_app.py      # entrada de la app (navegación multipágina)
 app_common.py         # estado compartido: carga de datos, sidebar, descargas
-app_pages/            # Inicio · Buscador · Jugador · Comparar · Equipos · Competición · Metodología
+app_pages/            # Inicio · Buscador · Jugador · Comparar · Encaje · Equipos · Competición · Metodología
 src/futbol_analytics/
   providers/          # contrato común + StatsBomb (implementado) + Wyscout (preparado)
   metrics.py          # métricas per-90 de jugador, PAdj, percentiles
   teams.py            # métricas de equipo: posesión, PPDA, npxG a favor/en contra
   similarity.py       # motor de jugadores similares
+  fit.py              # motor de encaje jugador–equipo (estilo × rasgos + mejora del puesto)
   viz.py              # radar, comparador, mapa de calor, pases, tiros (tema claro/oscuro)
   tsdb.py             # cliente de TheSportsDB (validación estricta + circuito de corte)
   photos.py           # fotos de jugadores (TheSportsDB, con caché)
