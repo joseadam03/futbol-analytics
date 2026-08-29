@@ -1,6 +1,6 @@
 # Imagen en dos etapas: las dependencias se compilan en el builder y la
 # imagen final queda limpia y corre como usuario sin privilegios.
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
@@ -16,7 +16,7 @@ COPY src ./src
 RUN pip install --prefix=/install --no-deps .
 
 
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
