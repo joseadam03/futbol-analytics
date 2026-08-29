@@ -16,15 +16,21 @@ pip install -e .
 streamlit run streamlit_app.py
 ```
 
-- **Radar** de percentiles per-90 del jugador frente a su grupo posicional.
-- **Mapas** sobre el campo: calor de toques, pases progresivos/clave, tiros (tamaño ∝ xG).
-- **Comparar**: radar superpuesto de dos jugadores (por defecto, el más similar)
+Multipágina, con navegación propia:
+
+- **Inicio** — resumen de la competición y jugadores destacados.
+- **Jugador** — radar de percentiles per-90, mapas de campo (calor de toques,
+  pases progresivos/clave, tiros con tamaño ∝ xG) y perfiles similares con foto.
+- **Comparar** — radar superpuesto de dos jugadores (por defecto, el más similar)
   con tabla de valores y percentiles lado a lado.
-- **Similares**: top-10 por similitud de coseno, con foto de cada jugador.
-- **Competición**: dispersión interactiva de todos los jugadores (ejes a elegir,
+- **Equipos** — posesión, **PPDA** (intensidad de presión), npxG a favor y en
+  contra por partido, y dispersión posesión vs. dominio.
+- **Competición** — dispersión interactiva de todos los jugadores (ejes a elegir,
   tooltip con nombre) y tabla completa descargable en CSV.
+- **Metodología** — definición exacta de cada métrica dentro de la propia app.
 - **Modo claro y oscuro**: los gráficos siguen el tema del usuario con una paleta
   validada para accesibilidad y daltonismo en ambas variantes.
+- Todos los gráficos con botón de **descarga en PNG** para presentaciones.
 - Fotos de jugadores vía TheSportsDB (gratuita; puede faltar alguna).
 
 También en Docker:
@@ -115,10 +121,13 @@ cálculos, y los penaltis dentro del juego de las métricas de tiro.
 ## Estructura
 
 ```
-streamlit_app.py      # la app web
+streamlit_app.py      # entrada de la app (navegación multipágina)
+app_common.py         # estado compartido: carga de datos, sidebar, descargas
+app_pages/            # Inicio · Jugador · Comparar · Equipos · Competición · Metodología
 src/futbol_analytics/
   providers/          # contrato común + StatsBomb (implementado) + Wyscout (preparado)
-  metrics.py          # métricas per-90, PAdj, percentiles
+  metrics.py          # métricas per-90 de jugador, PAdj, percentiles
+  teams.py            # métricas de equipo: posesión, PPDA, npxG a favor/en contra
   similarity.py       # motor de jugadores similares
   viz.py              # radar, comparador, mapa de calor, pases, tiros (tema claro/oscuro)
   photos.py           # fotos de jugadores (TheSportsDB, con caché)
