@@ -20,6 +20,7 @@ pages = st.navigation(
         st.Page("app_pages/buscador.py", title="Buscador", icon="🔍"),
         st.Page("app_pages/jugador.py", title="Jugador", icon="📊"),
         st.Page("app_pages/comparar.py", title="Comparar", icon="⚔️"),
+        st.Page("app_pages/encaje.py", title="Encaje", icon="🧩"),
         st.Page("app_pages/equipos.py", title="Equipos", icon="🛡️"),
         st.Page("app_pages/competicion.py", title="Competición", icon="🌍"),
         st.Page("app_pages/metodologia.py", title="Metodología", icon="📖"),

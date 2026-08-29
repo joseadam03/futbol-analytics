@@ -47,8 +47,9 @@ st.markdown(
 
 1. **Jugador** — informe completo: radar de percentiles, mapas de campo y perfiles similares.
 2. **Comparar** — dos jugadores frente a frente en el mismo radar.
-3. **Equipos** — estilo de juego: posesión, PPDA (intensidad de presión), npxG a favor y en contra.
-4. **Competición** — dispersión interactiva de todos los jugadores y tabla completa descargable.
+3. **Encaje** — a qué equipos les encaja un jugador, y qué fichajes le encajan a un equipo.
+4. **Equipos** — estilo de juego: posesión, PPDA (intensidad de presión), npxG a favor y en contra.
+5. **Competición** — dispersión interactiva de todos los jugadores y tabla completa descargable.
 
 Cada gráfico tiene su botón de descarga en PNG para llevarlo a una presentación.
 """
