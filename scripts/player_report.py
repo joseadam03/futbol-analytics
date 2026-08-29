@@ -46,17 +46,18 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="  %(message)s")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--player", required=True, help="Nombre (o parte) del jugador")
+    parser.add_argument("--provider", default="statsbomb", help="Proveedor de datos")
     parser.add_argument("--competition", type=int, default=43, help="competition_id de StatsBomb")
     parser.add_argument("--season", type=int, default=106, help="season_id de StatsBomb")
     parser.add_argument("--min-minutes", type=float, default=180, help="Mínimo de minutos para percentiles")
     parser.add_argument("--refresh", action="store_true", help="Ignorar caché y volver a descargar")
     args = parser.parse_args()
 
-    provider = get_provider("statsbomb")
+    provider = get_provider(args.provider)
     comps = provider.competitions()
     row = comps[(comps["competition_id"] == args.competition) & (comps["season_id"] == args.season)]
     if row.empty:
-        raise SystemExit("Esa competición/temporada no está en los open data de StatsBomb.")
+        raise SystemExit(f"Esa competición/temporada no está disponible en {args.provider}.")
     comp_label = f"{row.iloc[0]['competition_name']} {row.iloc[0]['season_name']}"
 
     print(f"Cargando eventos de {comp_label}...")
