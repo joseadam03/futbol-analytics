@@ -6,11 +6,20 @@ import numpy as np
 import pandas as pd
 
 DEFAULT_FEATURES = [
-    "npxg_p90", "shots_p90", "xa_p90", "key_passes_p90",
-    "prog_passes_p90", "prog_carries_p90", "dribbles_cmp_p90",
-    "touches_box_p90", "pass_pct",
-    "pressures_p90", "padj_tack_int_p90", "recoveries_p90",
-    "blocks_p90", "clearances_p90",
+    "npxg_p90",
+    "shots_p90",
+    "xa_p90",
+    "key_passes_p90",
+    "prog_passes_p90",
+    "prog_carries_p90",
+    "dribbles_cmp_p90",
+    "touches_box_p90",
+    "pass_pct",
+    "pressures_p90",
+    "padj_tack_int_p90",
+    "recoveries_p90",
+    "blocks_p90",
+    "clearances_p90",
 ]
 
 

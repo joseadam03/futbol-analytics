@@ -1,5 +1,7 @@
 # futbol-analytics
 
+[![CI](https://github.com/joseadam03/futbol-analytics/actions/workflows/ci.yml/badge.svg)](https://github.com/joseadam03/futbol-analytics/actions/workflows/ci.yml)
+
 Aplicación de análisis de rendimiento de jugadores sobre
 [StatsBomb open data](https://github.com/statsbomb/open-data): métricas per-90,
 percentiles por grupo posicional, comparador de jugadores, motor de similitud y
@@ -19,6 +21,9 @@ streamlit run streamlit_app.py
 Multipágina, con navegación propia:
 
 - **Inicio** — resumen de la competición y jugadores destacados.
+- **Buscador** — localiza a cualquier jugador: si está en la competición cargada
+  salta a su informe completo; si no está en los open data, muestra su ficha
+  informativa vía TheSportsDB y enlaces para seguir el scouting fuera.
 - **Jugador** — radar de percentiles per-90, mapas de campo (calor de toques,
   pases progresivos/clave, tiros con tamaño ∝ xG) y perfiles similares con foto.
 - **Comparar** — radar superpuesto de dos jugadores (por defecto, el más similar)
@@ -123,28 +128,45 @@ cálculos, y los penaltis dentro del juego de las métricas de tiro.
 ```
 streamlit_app.py      # entrada de la app (navegación multipágina)
 app_common.py         # estado compartido: carga de datos, sidebar, descargas
-app_pages/            # Inicio · Jugador · Comparar · Equipos · Competición · Metodología
+app_pages/            # Inicio · Buscador · Jugador · Comparar · Equipos · Competición · Metodología
 src/futbol_analytics/
   providers/          # contrato común + StatsBomb (implementado) + Wyscout (preparado)
   metrics.py          # métricas per-90 de jugador, PAdj, percentiles
   teams.py            # métricas de equipo: posesión, PPDA, npxG a favor/en contra
   similarity.py       # motor de jugadores similares
   viz.py              # radar, comparador, mapa de calor, pases, tiros (tema claro/oscuro)
+  tsdb.py             # cliente de TheSportsDB (validación estricta + circuito de corte)
   photos.py           # fotos de jugadores (TheSportsDB, con caché)
+  paths.py            # rutas de caché, configurables por entorno
 scripts/
   player_report.py    # CLI: informe estático de un jugador
-tests/                # tests unitarios de la lógica pura (sin red)
-.github/workflows/    # CI: ruff + pytest en cada push
-Dockerfile            # la app containerizada
+tests/                # tests unitarios y de humo, siempre sin red
+.github/workflows/    # CI: ruff (lint+formato) + pytest con cobertura + build Docker
+Dockerfile            # imagen multi-stage, usuario sin privilegios, healthcheck
+Makefile              # make help: install, lint, test, run, docker-*, lock
+uv.lock               # dependencias resueltas y fijadas (requirements*.txt se exportan de aquí)
 ```
 
 ## Desarrollo
 
 ```bash
-pip install -e ".[dev]"
-ruff check src scripts tests
-pytest -q
+make install   # dependencias fijadas + paquete editable + hooks de pre-commit
+make lint      # ruff check + comprobación de formato
+make test      # pytest con cobertura
+make run       # la app en local
+make help      # todos los objetivos
 ```
+
+Las dependencias se resuelven con [uv](https://docs.astral.sh/uv/) y quedan
+fijadas en `uv.lock`; `requirements.txt` y `requirements-dev.txt` se exportan
+desde el lock (`make lock`) para que pip, Docker y la CI instalen exactamente
+las mismas versiones. La CI comprueba lint, formato, tests con cobertura
+mínima y que la imagen Docker arranca y responde a su healthcheck; Dependabot
+mantiene al día pip, GitHub Actions y la imagen base.
+
+Para el proveedor Wyscout, copia `.env.example` a `.env` y rellena las
+credenciales. La caché de datos se puede reubicar con `FUTBOL_ANALYTICS_CACHE`
+(útil en contenedores; la imagen oficial ya lo hace).
 
 ## Hoja de ruta
 

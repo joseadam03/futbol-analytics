@@ -14,9 +14,7 @@ display_of, comp_label = ctx["display_of"], ctx["comp_label"]
 ac.player_header(ctx)
 
 sims = similarity.similar_players(table, player)
-same_group = table[
-    (table["position_group"] == prow["position_group"]) & (table["player"] != player)
-]
+same_group = table[(table["position_group"] == prow["position_group"]) & (table["player"] != player)]
 default_rival = sims.iloc[0]["player"] if not sims.empty else same_group.iloc[0]["player"]
 rival_options = sorted(same_group["player"], key=lambda p: display_of[p])
 rival = st.selectbox(

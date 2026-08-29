@@ -23,15 +23,14 @@ Notas del mapeo (v3):
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
 import pandas as pd
 import requests
 
+from ..paths import CACHE_DIR
 from .base import Provider
 
 API_BASE = "https://apirest.wyscout.com/v3"
-CACHE_DIR = Path(__file__).resolve().parents[3] / "data" / "cache"
 
 _MSG = (
     "El proveedor Wyscout requiere credenciales de la API de Hudl/Wyscout "

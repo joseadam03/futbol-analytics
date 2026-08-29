@@ -12,6 +12,7 @@ instantáneas.
 from __future__ import annotations
 
 import argparse
+import logging
 import unicodedata
 from pathlib import Path
 
@@ -38,6 +39,8 @@ def find_player(names: list[str], query: str) -> str:
 
 
 def main() -> None:
+    # el progreso de descarga (eventos/alineaciones) se emite por logging
+    logging.basicConfig(level=logging.INFO, format="  %(message)s")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--player", required=True, help="Nombre (o parte) del jugador")
     parser.add_argument("--competition", type=int, default=43, help="competition_id de StatsBomb")
@@ -48,9 +51,7 @@ def main() -> None:
 
     provider = get_provider("statsbomb")
     comps = provider.competitions()
-    row = comps[
-        (comps["competition_id"] == args.competition) & (comps["season_id"] == args.season)
-    ]
+    row = comps[(comps["competition_id"] == args.competition) & (comps["season_id"] == args.season)]
     if row.empty:
         raise SystemExit("Esa competición/temporada no está en los open data de StatsBomb.")
     comp_label = f"{row.iloc[0]['competition_name']} {row.iloc[0]['season_name']}"
