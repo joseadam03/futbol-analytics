@@ -78,10 +78,11 @@ class StatsBombProvider(Provider):
                         start = _clock_to_min(pos["from"])
                         stop = _clock_to_min(pos["to"]) if pos.get("to") else end
                         mins += max(0.0, stop - start)
+                    nick = p.get("player_nickname")
                     rows.append(
                         {
                             "player": p["player_name"],
-                            "nickname": p.get("player_nickname") or p["player_name"],
+                            "nickname": nick if isinstance(nick, str) and nick else p["player_name"],
                             "team": team,
                             "match_id": match_id,
                             "minutes": mins,

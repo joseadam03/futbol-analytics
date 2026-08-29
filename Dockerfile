@@ -6,7 +6,8 @@ COPY pyproject.toml README.md ./
 COPY src ./src
 RUN pip install --no-cache-dir -e .
 
-COPY streamlit_app.py ./
+COPY streamlit_app.py app_common.py ./
+COPY app_pages ./app_pages
 COPY .streamlit ./.streamlit
 
 EXPOSE 8501
