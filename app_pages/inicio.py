@@ -26,7 +26,8 @@ with left:
     top = table.nlargest(5, "npxg_p90")[["nickname", "team", "npxg_p90"]]
     st.dataframe(
         top.rename(columns={"nickname": "Jugador", "team": "Equipo", "npxg_p90": "npxG/90"}),
-        use_container_width=True, hide_index=True,
+        use_container_width=True,
+        hide_index=True,
         column_config={"npxG/90": st.column_config.NumberColumn(format="%.2f")},
     )
 with right:
@@ -34,7 +35,8 @@ with right:
     top = table.nlargest(5, "xa_p90")[["nickname", "team", "xa_p90"]]
     st.dataframe(
         top.rename(columns={"nickname": "Jugador", "team": "Equipo", "xa_p90": "xA/90"}),
-        use_container_width=True, hide_index=True,
+        use_container_width=True,
+        hide_index=True,
         column_config={"xA/90": st.column_config.NumberColumn(format="%.2f")},
     )
 

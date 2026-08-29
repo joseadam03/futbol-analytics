@@ -18,14 +18,26 @@ from scipy.ndimage import gaussian_filter
 
 # Paleta validada (accesibilidad/daltonismo) en variante clara y oscura.
 _LIGHT = {
-    "SURFACE": "#fcfcfb", "INK": "#0b0b0b", "INK_2": "#52514e", "MUTED": "#898781",
-    "GRID": "#e1e0d9", "BASELINE": "#c3c2b7", "BLUE": "#2a78d6", "ORANGE": "#eb6834",
+    "SURFACE": "#fcfcfb",
+    "INK": "#0b0b0b",
+    "INK_2": "#52514e",
+    "MUTED": "#898781",
+    "GRID": "#e1e0d9",
+    "BASELINE": "#c3c2b7",
+    "BLUE": "#2a78d6",
+    "ORANGE": "#eb6834",
     "RING": "#f0efec",
     "SEQ": ["#fcfcfb", "#cde2fb", "#86b6ef", "#3987e5", "#1c5cab", "#0d366b"],
 }
 _DARK = {
-    "SURFACE": "#1a1a19", "INK": "#ffffff", "INK_2": "#c3c2b7", "MUTED": "#898781",
-    "GRID": "#2c2c2a", "BASELINE": "#383835", "BLUE": "#3987e5", "ORANGE": "#d95926",
+    "SURFACE": "#1a1a19",
+    "INK": "#ffffff",
+    "INK_2": "#c3c2b7",
+    "MUTED": "#898781",
+    "GRID": "#2c2c2a",
+    "BASELINE": "#383835",
+    "BLUE": "#3987e5",
+    "ORANGE": "#d95926",
     "RING": "#242423",
     "SEQ": ["#1a1a19", "#104281", "#1c5cab", "#3987e5", "#86b6ef", "#cde2fb"],
 }
@@ -49,24 +61,36 @@ use_theme("light")
 # Métricas del radar por grupo posicional: (columna de percentil, etiqueta)
 RADAR_METRICS = {
     "FW": [
-        ("npxg_p90_pct", "npxG"), ("shots_p90_pct", "Tiros"),
-        ("xa_p90_pct", "xA"), ("key_passes_p90_pct", "Pases clave"),
-        ("dribbles_cmp_p90_pct", "Regates"), ("touches_box_p90_pct", "Toques en área"),
+        ("npxg_p90_pct", "npxG"),
+        ("shots_p90_pct", "Tiros"),
+        ("xa_p90_pct", "xA"),
+        ("key_passes_p90_pct", "Pases clave"),
+        ("dribbles_cmp_p90_pct", "Regates"),
+        ("touches_box_p90_pct", "Toques en área"),
         ("prog_carries_p90_pct", "Conducciones\nprogresivas"),
-        ("prog_passes_p90_pct", "Pases\nprogresivos"), ("pressures_p90_pct", "Presiones"),
+        ("prog_passes_p90_pct", "Pases\nprogresivos"),
+        ("pressures_p90_pct", "Presiones"),
     ],
     "MF": [
-        ("npxg_p90_pct", "npxG"), ("xa_p90_pct", "xA"),
-        ("key_passes_p90_pct", "Pases clave"), ("prog_passes_p90_pct", "Pases\nprogresivos"),
-        ("prog_carries_p90_pct", "Conducciones\nprogresivas"), ("dribbles_cmp_p90_pct", "Regates"),
-        ("pressures_p90_pct", "Presiones"), ("padj_tack_int_p90_pct", "Entradas+Int.\n(PAdj)"),
+        ("npxg_p90_pct", "npxG"),
+        ("xa_p90_pct", "xA"),
+        ("key_passes_p90_pct", "Pases clave"),
+        ("prog_passes_p90_pct", "Pases\nprogresivos"),
+        ("prog_carries_p90_pct", "Conducciones\nprogresivas"),
+        ("dribbles_cmp_p90_pct", "Regates"),
+        ("pressures_p90_pct", "Presiones"),
+        ("padj_tack_int_p90_pct", "Entradas+Int.\n(PAdj)"),
         ("recoveries_p90_pct", "Recuperaciones"),
     ],
     "DF": [
-        ("padj_tack_int_p90_pct", "Entradas+Int.\n(PAdj)"), ("blocks_p90_pct", "Bloqueos"),
-        ("clearances_p90_pct", "Despejes"), ("recoveries_p90_pct", "Recuperaciones"),
-        ("pressures_p90_pct", "Presiones"), ("prog_passes_p90_pct", "Pases\nprogresivos"),
-        ("prog_carries_p90_pct", "Conducciones\nprogresivas"), ("xa_p90_pct", "xA"),
+        ("padj_tack_int_p90_pct", "Entradas+Int.\n(PAdj)"),
+        ("blocks_p90_pct", "Bloqueos"),
+        ("clearances_p90_pct", "Despejes"),
+        ("recoveries_p90_pct", "Recuperaciones"),
+        ("pressures_p90_pct", "Presiones"),
+        ("prog_passes_p90_pct", "Pases\nprogresivos"),
+        ("prog_carries_p90_pct", "Conducciones\nprogresivas"),
+        ("xa_p90_pct", "xA"),
     ],
 }
 RADAR_METRICS["GK"] = RADAR_METRICS["DF"]
@@ -90,15 +114,21 @@ def radar_chart(player_row: pd.Series, competition_label: str, display: str | No
     values = [float(player_row[col]) for col, _ in metrics]
 
     radar = Radar(
-        params, min_range=[0] * len(params), max_range=[100] * len(params),
-        round_int=[True] * len(params), num_rings=4, ring_width=1, center_circle_radius=1,
+        params,
+        min_range=[0] * len(params),
+        max_range=[100] * len(params),
+        round_int=[True] * len(params),
+        num_rings=4,
+        ring_width=1,
+        center_circle_radius=1,
     )
     fig, ax = radar.setup_axis(figsize=(8, 8.6))
     fig.set_facecolor(SURFACE)
     ax.set_facecolor(SURFACE)
     radar.draw_circles(ax=ax, facecolor=RING, edgecolor=GRID)
     radar.draw_radar(
-        values, ax=ax,
+        values,
+        ax=ax,
         kwargs_radar={"facecolor": BLUE, "alpha": 0.55, "edgecolor": BLUE, "linewidth": 2},
         kwargs_rings={"facecolor": BLUE, "alpha": 0.08},
     )
@@ -133,15 +163,22 @@ def radar_compare(
     values_b = [float(row_b[col]) for col, _ in metrics]
 
     radar = Radar(
-        params, min_range=[0] * len(params), max_range=[100] * len(params),
-        round_int=[True] * len(params), num_rings=4, ring_width=1, center_circle_radius=1,
+        params,
+        min_range=[0] * len(params),
+        max_range=[100] * len(params),
+        round_int=[True] * len(params),
+        num_rings=4,
+        ring_width=1,
+        center_circle_radius=1,
     )
     fig, ax = radar.setup_axis(figsize=(8, 8.6))
     fig.set_facecolor(SURFACE)
     ax.set_facecolor(SURFACE)
     radar.draw_circles(ax=ax, facecolor=RING, edgecolor=GRID)
     radar.draw_radar_compare(
-        values_a, values_b, ax=ax,
+        values_a,
+        values_b,
+        ax=ax,
         kwargs_radar={"facecolor": BLUE, "alpha": 0.5, "edgecolor": BLUE, "linewidth": 2},
         kwargs_compare={"facecolor": ORANGE, "alpha": 0.45, "edgecolor": ORANGE, "linewidth": 2},
     )
@@ -152,7 +189,10 @@ def radar_compare(
             mpatches.Patch(color=BLUE, alpha=0.7, label=name_a),
             mpatches.Patch(color=ORANGE, alpha=0.7, label=name_b),
         ],
-        loc="upper right", fontsize=9, frameon=False, labelcolor=INK_2,
+        loc="upper right",
+        fontsize=9,
+        frameon=False,
+        labelcolor=INK_2,
     )
     _header(
         fig,
@@ -180,7 +220,11 @@ def touch_heatmap(events: pd.DataFrame, player: str, competition_label: str, dis
     stats["statistic"] = gaussian_filter(stats["statistic"], 1.5)
     pitch.heatmap(stats, ax=ax, cmap=SEQ_BLUE, edgecolors="none", zorder=0)
 
-    _header(fig, display or player, f"{competition_label}  ·  Mapa de calor de toques ({len(touches)})  ·  ataca →")
+    _header(
+        fig,
+        display or player,
+        f"{competition_label}  ·  Mapa de calor de toques ({len(touches)})  ·  ataca →",
+    )
     return fig
 
 
@@ -212,9 +256,16 @@ def pass_map(events: pd.DataFrame, player: str, competition_label: str, display:
         if df.empty:
             continue
         pitch.lines(
-            df["location"].str[0].astype(float), df["location"].str[1].astype(float),
-            df["pass_end_location"].str[0].astype(float), df["pass_end_location"].str[1].astype(float),
-            comet=True, color=color, linewidth=3, alpha=alpha, ax=ax, zorder=2,
+            df["location"].str[0].astype(float),
+            df["location"].str[1].astype(float),
+            df["pass_end_location"].str[0].astype(float),
+            df["pass_end_location"].str[1].astype(float),
+            comet=True,
+            color=color,
+            linewidth=3,
+            alpha=alpha,
+            ax=ax,
+            zorder=2,
         )
 
     handles = [
@@ -243,8 +294,12 @@ def shot_map(events: pd.DataFrame, player: str, competition_label: str, display:
         if df.empty:
             return
         pitch.scatter(
-            df["location"].str[0].astype(float), df["location"].str[1].astype(float),
-            s=df["shot_statsbomb_xg"].fillna(0) * 900 + 40, ax=ax, zorder=2, **kw,
+            df["location"].str[0].astype(float),
+            df["location"].str[1].astype(float),
+            s=df["shot_statsbomb_xg"].fillna(0) * 900 + 40,
+            ax=ax,
+            zorder=2,
+            **kw,
         )
 
     _plot(misses, facecolor="none", edgecolor=MUTED, linewidth=1.4)
@@ -258,7 +313,8 @@ def shot_map(events: pd.DataFrame, player: str, competition_label: str, display:
 
     npxg = shots["shot_statsbomb_xg"].fillna(0).sum()
     _header(
-        fig, display or player,
+        fig,
+        display or player,
         f"{competition_label}  ·  Tiros sin penaltis: {len(shots)}  ·  npxG {npxg:.2f}  ·  "
         f"goles {len(goals)}  ·  tamaño ∝ xG",
     )
