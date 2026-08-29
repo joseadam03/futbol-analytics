@@ -21,6 +21,7 @@ PAGINAS = [
     "comparar",
     "encaje",
     "equipos",
+    "informe_equipo",
     "competicion",
     "modelo_xg",
     "metodologia",

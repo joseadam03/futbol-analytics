@@ -7,7 +7,7 @@ import io
 import pandas as pd
 import streamlit as st
 
-from futbol_analytics import metrics, photos, report, tsdb, viz, xg
+from futbol_analytics import metrics, photos, report, teams, tsdb, viz, xg
 from futbol_analytics.providers import get_provider, list_providers
 
 SCATTER_COLORS = {
@@ -42,12 +42,25 @@ def load_minutes(provider_key: str, competition_id: int, season_id: int) -> pd.D
 
 
 @st.cache_data(show_spinner=False)
-def build_table(provider_key: str, competition_id: int, season_id: int, min_minutes: float) -> pd.DataFrame:
+def build_table(
+    provider_key: str,
+    competition_id: int,
+    season_id: int,
+    min_minutes: float,
+    basis: str = "position_group",
+) -> pd.DataFrame:
     events = load_events(provider_key, competition_id, season_id)
     minutes = load_minutes(provider_key, competition_id, season_id)
     table = metrics.player_metrics(events, minutes, min_minutes=min_minutes)
     pct_cols = [f"{m}_p90" for m in metrics.COUNT_METRICS] + ["pass_pct", "npxg_per_shot"]
-    return metrics.percentiles(table, pct_cols)
+    return metrics.percentiles(table, pct_cols, group_col=basis)
+
+
+def pool_label(prow: pd.Series) -> str:
+    """Contra quién se comparó a este jugador: su rol fino o su grupo posicional."""
+    if prow.get("pct_basis") == "role" and isinstance(prow.get("role"), str):
+        return str(prow["role"]).lower() + "s"
+    return str(prow["position_group"])
 
 
 @st.cache_data(show_spinner=False)
@@ -59,6 +72,19 @@ def photo_of(display_name: str) -> str | None:
 def buscar_fichas(query: str) -> list[dict]:
     """Fichas externas de TheSportsDB; propaga ServiceUnavailable (no se cachea)."""
     return tsdb.search_players(query)
+
+
+@st.cache_data(show_spinner=False)
+def team_table(provider_key: str, competition_id: int, season_id: int) -> pd.DataFrame:
+    """Rendimiento por equipo: posesión, npxG a favor/en contra, PPDA."""
+    return teams.team_metrics(load_events(provider_key, competition_id, season_id))
+
+
+@st.cache_data(show_spinner=False)
+def team_style_table(provider_key: str, competition_id: int, season_id: int) -> pd.DataFrame:
+    """Estilo por equipo (ritmo, presión, progresión) con sus percentiles."""
+    events = load_events(provider_key, competition_id, season_id)
+    return teams.team_style_percentiles(teams.team_style_metrics(events))
 
 
 @st.cache_data(show_spinner=False)
@@ -76,9 +102,10 @@ def informe_pdf(
     min_minutes: float,
     player: str,
     comp_label: str,
+    basis: str = "position_group",
 ) -> bytes:
     """Informe-CV en PDF del jugador (siempre en tema claro, para imprimir)."""
-    table = build_table(provider_key, competition_id, season_id, min_minutes)
+    table = build_table(provider_key, competition_id, season_id, min_minutes, basis)
     events = load_events(provider_key, competition_id, season_id)
     try:
         return report.player_report_pdf(table, events, player, comp_label)
@@ -140,11 +167,21 @@ def sidebar_context() -> dict:
     comp = comps[comps["label"] == comp_label].iloc[0]
 
     min_minutes = st.sidebar.slider("Minutos mínimos (percentiles)", 0, 900, 180, 30, key="min_sel")
+    basis = st.sidebar.radio(
+        "Comparar contra",
+        ["position_group", "role"],
+        format_func=lambda b: "Grupo posicional" if b == "position_group" else "Rol (lateral ≠ central)",
+        key="basis_sel",
+        help=(
+            "El rol fino compara peras con peras, pero adelgaza la muestra: los roles con "
+            f"menos de {metrics.MIN_ROLE_SIZE} jugadores caen automáticamente a su grupo posicional."
+        ),
+    )
 
     with st.spinner("Cargando datos... (la primera descarga de una competición tarda varios minutos)"):
         try:
             table = build_table(
-                provider_key, int(comp["competition_id"]), int(comp["season_id"]), min_minutes
+                provider_key, int(comp["competition_id"]), int(comp["season_id"]), min_minutes, basis
             )
             events = load_events(provider_key, int(comp["competition_id"]), int(comp["season_id"]))
         except Exception as exc:  # red o proveedor caídos a mitad de descarga
@@ -183,6 +220,8 @@ def sidebar_context() -> dict:
         "comp": comp,
         "comp_label": comp_label,
         "min_minutes": min_minutes,
+        "basis": basis,
+        "pool_label": pool_label(prow),
         "table": table,
         "events": events,
         "player": player,

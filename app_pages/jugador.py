@@ -21,6 +21,7 @@ if st.button("🖨️ Generar informe-CV en PDF", key="btn_pdf"):
             ctx["min_minutes"],
             player,
             comp_label,
+            ctx["basis"],
         )
     st.download_button(
         "⬇ Descargar informe.pdf",
@@ -49,15 +50,19 @@ tab_radar, tab_mapas, tab_similares = st.tabs(["Radar", "Mapas", "Similares"])
 with tab_radar:
     left, right = st.columns([3, 2])
     with left:
-        ac.fig_and_download(viz.radar_chart(prow, comp_label, display), "radar.png")
+        ac.fig_and_download(viz.radar_chart(prow, comp_label, display, ctx["pool_label"]), "radar.png")
     with right:
         st.markdown("#### Lectura")
-        group = prow["position_group"]
         st.markdown(
-            f"Cada eje es el **percentil per-90 del jugador frente a los {group} "
+            f"Cada eje es el **percentil per-90 del jugador frente a los {ctx['pool_label']} "
             f"de la competición** con al menos {ctx['min_minutes']:.0f} minutos. "
-            "Un 90 significa que supera al 90 % de sus pares posicionales."
+            "Un 90 significa que supera al 90 % de ese grupo."
         )
+        if ctx["basis"] == "role" and prow.get("pct_basis") != "role":
+            st.info(
+                f"Hay menos de {ac.metrics.MIN_ROLE_SIZE} jugadores con el rol "
+                f"**{prow.get('role')}**, así que la comparación cae a su grupo posicional."
+            )
         st.markdown(
             "- Las métricas defensivas usan **PAdj** (ajuste por posesión).\n"
             "- **xA** enlaza cada pase clave con el xG del tiro que generó.\n"

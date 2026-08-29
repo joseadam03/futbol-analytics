@@ -289,3 +289,67 @@ def test_pool_multicompeticion_en_players_for_team():
     d = fichajes[fichajes["player"] == "Cand D"].iloc[0]
     # nivel del puesto del destino (A, FW en C1) = 55 ponderado... A solo tiene a Ancla (50)
     assert d["mejora_puesto"] == pytest.approx(70.0 - 50.0)
+
+
+def _pool_puente(dif_nivel: float, n_puentes: int, n_propios: int = 5):
+    """Pool de dos competiciones donde C2 infla los percentiles `dif_nivel` puntos."""
+    filas = []
+
+    def fw(nombre, equipo, comp, pct):
+        base = {c: pct for c in fit.GROUP_KEY_PCT["FW"]}
+        return {
+            "player": nombre,
+            "team": equipo,
+            "competition": comp,
+            "primary_position": "CF",
+            "position_group": "FW",
+            "minutes": 900.0,
+            **base,
+        }
+
+    for i in range(n_puentes):  # jugadores presentes en las dos competiciones
+        filas.append(fw(f"Puente {i}", "A", "C1", 50.0))
+        filas.append(fw(f"Puente {i}", "D", "C2", 50.0 + dif_nivel))
+    for i in range(n_propios):
+        filas.append(fw(f"Solo1 {i}", "B", "C1", 40.0))
+        filas.append(fw(f"Solo2 {i}", "E", "C2", 40.0 + dif_nivel))
+    return pd.DataFrame(filas)
+
+
+def test_offsets_detectan_la_inflacion_de_una_competicion():
+    offsets = fit.competition_offsets(_pool_puente(dif_nivel=25.0, n_puentes=4), "C1")
+    o = offsets.set_index("competition")
+    assert o.loc["C1", "offset"] == 0.0  # la referencia no se mueve
+    assert o.loc["C2", "bridged"]
+    assert o.loc["C2", "n_bridge"] == 4
+    # C2 infla 25 puntos -> hay que restarlos
+    assert o.loc["C2", "offset"] == pytest.approx(-25.0)
+
+
+def test_sin_puentes_suficientes_no_se_ajusta_y_se_marca():
+    offsets = fit.competition_offsets(_pool_puente(dif_nivel=25.0, n_puentes=1), "C1")
+    c2 = offsets.set_index("competition").loc["C2"]
+    assert c2["offset"] == 0.0
+    assert not c2["bridged"]
+    assert c2["n_bridge"] == 1
+
+
+def test_offsets_sin_columna_de_competicion_devuelve_vacio():
+    assert fit.competition_offsets(tabla_fw(), "X").empty
+
+
+def test_el_ajuste_corrige_la_mejora_del_puesto():
+    pool = _pool_puente(dif_nivel=25.0, n_puentes=4)
+    ev = eventos_dos_estilos()
+    # el equipo A juega en C1; los candidatos de C2 llegan inflados
+    sin = fit.players_for_team(pool, ev, "A", adjust_level=False)
+    con = fit.players_for_team(pool, ev, "A", adjust_level=True)
+
+    c2_sin = sin[sin["competition"] == "C2"]["mejora_puesto"].mean()
+    c2_con = con[con["competition"] == "C2"]["mejora_puesto"].mean()
+    assert c2_con == pytest.approx(c2_sin - 25.0)
+    # los de la propia competición no se tocan
+    c1_sin = sin[sin["competition"] == "C1"]["mejora_puesto"].mean()
+    c1_con = con[con["competition"] == "C1"]["mejora_puesto"].mean()
+    assert c1_con == pytest.approx(c1_sin)
+    assert set(con["bridged"]) == {True}

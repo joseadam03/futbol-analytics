@@ -17,7 +17,7 @@ st.markdown(
 | **Pase/conducción progresiva** | Reduce la distancia a portería rival ≥ 25 %; sin balón parado |
 | **PAdj Entradas+Int.** | `(entradas + intercepciones) × 0.5 / (1 − posesión del equipo)` |
 | **Toques en área** | Eventos con balón dentro del área rival |
-| **Percentiles** | Rango dentro del grupo posicional (GK/DF/MF/FW) |
+| **Percentiles** | Rango dentro del grupo posicional (GK/DF/MF/FW) o del rol fino (central, lateral, pivote, interior, mediapunta, extremo, delantero), a elegir; los roles con menos de 8 jugadores caen a su grupo |
 | **Similitud** | Coseno entre perfiles per-90 estandarizados (z-score) del grupo |
 
 #### Métricas de equipo
@@ -29,6 +29,17 @@ st.markdown(
 | **PPDA** | Pases del rival en su zona de construcción (su 60 % inicial) por cada acción defensiva propia (entradas, intercepciones, faltas) en campo contrario. Más bajo = presión más intensa |
 | **Presiones/partido** | Eventos de presión de StatsBomb por partido |
 
+#### Estilo de equipo
+
+| Familia | Métricas |
+|---|---|
+| **Ritmo** | Longitud media de pase, % de pases largos (≥ 30 unidades) y pases por posesión |
+| **Presión** | PPDA, presiones por partido y altura media de las acciones defensivas |
+| **Progresión** | % de pases progresivos, conducciones progresivas/partido, entradas al último tercio (cruzar x = 80) y *field tilt* (cuota propia de toques en el último tercio) |
+
+Los percentiles de estilo se leen como "más de ese rasgo", no como "mejor"; el
+del PPDA va invertido para que alto signifique siempre más presión.
+
 #### Encaje jugador–equipo
 
 | Componente | Definición |
@@ -39,8 +50,16 @@ st.markdown(
 | **Mejora del puesto** | Percentil medio del jugador en las métricas clave de su grupo (las del radar) menos el nivel del puesto en el destino: media de sus jugadores del mismo **rol fino** (lateral ≠ central) **ponderada por minutos**, con caída al grupo posicional si el equipo no tiene ese rol |
 | **Encaje (0-100)** | Percentil de la media de ambos componentes estandarizados dentro del conjunto comparado |
 
-El encaje ordena candidatos *dentro de la competición cargada*; no considera
-edad, precio, rol táctico fino ni contexto de club.
+**Encaje entre competiciones.** Al ampliar el pool con otras ligas, un percentil
+80 no vale lo mismo en cada una. Se corrige con el truco clásico de *linking* por
+elementos comunes: los **jugadores puente**, presentes en las dos competiciones.
+Si uno rinde en el percentil 60 en la de referencia y en el 85 en la otra, esos
+25 puntos son inflación de la segunda; el desplazamiento es la mediana de esa
+diferencia entre todos los puentes. Sin puentes suficientes no se ajusta nada y
+la app lo advierte, en vez de inventar un coeficiente.
+
+El encaje ordena candidatos dentro del pool analizado; no considera edad, precio,
+perfil zurdo/diestro, química ni contexto de club.
 
 #### Modelo de xG propio
 

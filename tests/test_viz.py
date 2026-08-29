@@ -103,3 +103,15 @@ def test_style_map():
     )
     fig = viz.style_map(style, highlight=["B"], current_team="A", subtitle="Test")
     assert fig is not None
+
+
+def test_team_radar():
+    fila = pd.Series({c: 60.0 for c, _ in viz.TEAM_RADAR_METRICS})
+    fig = viz.team_radar(fila, "Competición Test", "Equipo X")
+    assert fig is not None
+
+
+def test_team_radar_omite_metricas_ausentes():
+    fila = pd.Series({"ppda_pct": 70.0, "field_tilt_pct": float("nan")})
+    fig = viz.team_radar(fila, "Competición Test", "Equipo X")
+    assert fig is not None

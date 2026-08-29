@@ -18,6 +18,11 @@ pip install -r requirements.txt && pip install --no-deps -e .
 streamlit run streamlit_app.py
 ```
 
+**En Windows**: con [Python 3.11+](https://www.python.org/downloads/) instalado
+(marcando *Add Python to PATH*), doble clic en `run_windows.bat`. La primera vez
+crea el entorno virtual e instala las dependencias; después arranca directo y
+abre la app en el navegador.
+
 ¿Sin ganas de esperar a la primera descarga? `make demo` arranca al instante
 sobre una liga sintética (`FUTBOL_ANALYTICS_FAKE=1`), sin red y con dos equipos
 de estilos opuestos para que todas las páginas tengan algo que contar.
@@ -41,6 +46,9 @@ Multipágina, con navegación propia:
   y pool ampliable con otras competiciones ya cacheadas.
 - **Equipos** — posesión, **PPDA** (intensidad de presión), npxG a favor y en
   contra por partido, y dispersión posesión vs. dominio.
+- **Informe de equipo** — cómo juega, no solo cuánto rinde: radar de estilo en
+  tres familias (**ritmo**, **presión** y **progresión**) con percentiles de la
+  competición, lectura en prosa y tabla descargable.
 - **Competición** — dispersión interactiva de todos los jugadores (ejes a elegir,
   tooltip con nombre) y tabla completa descargable en CSV.
 - **Modelo xG** — regresión logística propia (distancia, ángulo, cabeza)
@@ -90,9 +98,12 @@ métricas y visualizaciones consumen un esquema de eventos normalizado, de modo
 que añadir una fuente nueva no toca nada más.
 
 - **StatsBomb open data** — implementado, con caché local.
-- **Wyscout** — interfaz preparada; requiere credenciales de la API de Hudl
-  (`WYSCOUT_CLIENT_ID` / `WYSCOUT_CLIENT_SECRET`) e implementar el mapeo de
-  eventos documentado en `providers/wyscout.py`.
+- **Wyscout** — implementado: autenticación, endpoints v3, caché, **mapeo de
+  eventos** al esquema común y minutos desde las alineaciones. Solo requiere
+  credenciales (`WYSCOUT_CLIENT_ID` / `WYSCOUT_CLIENT_SECRET`). El mapeo está
+  escrito contra el esquema documentado de la v3 y cubierto por tests con
+  payloads sintéticos; queda contrastarlo con un partido real cuando haya
+  acceso, que es exactamente lo que las credenciales permiten hacer.
 - **Demo (liga sintética)** — datos generados, deterministas y sin red. Se activa
   con `FUTBOL_ANALYTICS_FAKE=1` y es lo que usan los tests de interfaz para
   renderizar la app entera en segundos.
@@ -125,10 +136,15 @@ cálculos, y los penaltis dentro del juego de las métricas de tiro.
   error habitual; este ajuste lo corrige de forma transparente.
 - **Toques en el área** — eventos con balón (pase, tiro, conducción, regate,
   recepción) dentro del área rival.
-- **Percentiles** — rango percentil dentro del grupo posicional (GK/DF/MF/FW),
-  asignado por la posición más frecuente del jugador en los eventos. Además se
-  deriva un **rol fino** (portero, central, lateral, pivote, interior,
-  mediapunta, extremo, delantero) que usa el motor de encaje.
+- **Percentiles** — rango percentil dentro del grupo posicional (GK/DF/MF/FW) o
+  del **rol fino** (portero, central, lateral, pivote, interior, mediapunta,
+  extremo, delantero), a elegir en la barra lateral. El rol compara peras con
+  peras, pero adelgaza la muestra: los roles con menos de 8 jugadores caen
+  automáticamente a su grupo posicional, y la app dice cuál se usó.
+- **Estilo de equipo** — ritmo (longitud de pase, % de pases largos, pases por
+  posesión), presión (PPDA, presiones, altura de recuperación) y progresión
+  (% de pases progresivos, conducciones, entradas al último tercio y *field
+  tilt*: qué parte de los toques en el último tercio de cada partido son suyos).
 - **Jugadores similares** — z-score de cada métrica per-90 dentro del grupo
   posicional y similitud de coseno entre perfiles: compara la *forma* del
   perfil (a qué se dedica el jugador), no su volumen bruto.
@@ -149,10 +165,10 @@ cálculos, y los penaltis dentro del juego de las métricas de tiro.
   tienen mucha varianza; el umbral de minutos mitiga pero no elimina esto.
 - La posesión por cuota de pases es una aproximación razonable, no la posesión
   oficial.
-- Los percentiles siguen calculándose por grupo posicional; el rol fino se usa
-  hoy en el encaje, y percentilar por rol es el siguiente paso natural.
-- El pool multi-competición del encaje estandariza dentro de cada competición,
-  pero no corrige diferencias de nivel entre ligas: es orientativo.
+- El rol fino da comparaciones más justas pero muestras más pequeñas; con
+  competiciones cortas, muchos roles caerán al grupo posicional.
+- El ajuste de nivel entre ligas depende de que haya jugadores en común; sin
+  ellos no se corrige nada y la app lo dice en vez de fingir una corrección.
 - El xG propio ve tres rasgos; el del proveedor ve presión, portero y contexto.
   El ejercicio es de transparencia y calibración, no de batir a StatsBomb.
 
@@ -161,11 +177,11 @@ cálculos, y los penaltis dentro del juego de las métricas de tiro.
 ```
 streamlit_app.py      # entrada de la app (navegación multipágina)
 app_common.py         # estado compartido: carga de datos, sidebar, descargas
-app_pages/            # Inicio · Buscador · Jugador · Comparar · Encaje · Equipos · Competición · Modelo xG · Metodología
+app_pages/            # Inicio · Buscador · Jugador · Comparar · Encaje · Equipos · Informe de equipo · Competición · Modelo xG · Metodología
 src/futbol_analytics/
-  providers/          # contrato común + StatsBomb + Wyscout (preparado) + demo sintética
-  metrics.py          # métricas per-90 de jugador, PAdj, percentiles, roles
-  teams.py            # métricas de equipo: posesión, PPDA, npxG a favor/en contra
+  providers/          # contrato común + StatsBomb + Wyscout + demo sintética
+  metrics.py          # métricas per-90 de jugador, PAdj, percentiles por grupo o rol
+  teams.py            # rendimiento y estilo de equipo (ritmo, presión, progresión)
   similarity.py       # motor de jugadores similares
   fit.py              # motor de encaje jugador–equipo (estilo × rasgos + mejora del puesto)
   xg.py               # modelo de xG propio y su calibración
@@ -216,10 +232,13 @@ oficial ya lo hace) y precalentar con `make warm`.
 
 ## Hoja de ruta
 
-- Proveedor Wyscout completo (mapeo de eventos al esquema común)
-- Percentiles por rol, no solo en el encaje
-- Informe de equipo (estilo de juego: ritmo, presión, progresión)
-- Ajuste de nivel entre competiciones para el encaje multi-liga
+Completada la hoja de ruta inicial (proveedor Wyscout, percentiles por rol,
+informe de equipo y ajuste de nivel entre competiciones). Lo siguiente:
+
+- Verificar el mapeo de Wyscout contra partidos reales, en cuanto haya acceso
+- Modelo de xG con más contexto (presión sobre el tirador, portero)
+- Secuencias de posesión: de dónde nacen las ocasiones de cada equipo
+- Series temporales: evolución del rendimiento por jornada
 
 ## Créditos
 

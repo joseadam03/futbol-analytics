@@ -107,8 +107,14 @@ def save(fig, out_path: Path) -> None:
     plt.close(fig)
 
 
-def radar_chart(player_row: pd.Series, competition_label: str, display: str | None = None):
+def radar_chart(
+    player_row: pd.Series,
+    competition_label: str,
+    display: str | None = None,
+    pool_label: str | None = None,
+):
     group = player_row["position_group"]
+    pool_label = pool_label or group
     metrics = RADAR_METRICS.get(group, RADAR_METRICS["MF"])
     params = [label for _, label in metrics]
     values = [float(player_row[col]) for col, _ in metrics]
@@ -139,7 +145,7 @@ def radar_chart(player_row: pd.Series, competition_label: str, display: str | No
         fig,
         display or player_row["player"],
         f"{player_row['team']}  ·  {competition_label}  ·  {player_row['minutes']:.0f} min\n"
-        f"Percentiles per-90 vs. {group} de la competición",
+        f"Percentiles per-90 vs. {pool_label} de la competición",
     )
     return fig
 
@@ -150,6 +156,7 @@ def radar_compare(
     competition_label: str,
     name_a: str | None = None,
     name_b: str | None = None,
+    pool_label: str | None = None,
 ):
     """Radar superpuesto de dos jugadores (percentiles del grupo del primero)."""
     import matplotlib.patches as mpatches
@@ -157,6 +164,7 @@ def radar_compare(
     name_a = name_a or row_a["player"]
     name_b = name_b or row_b["player"]
     group = row_a["position_group"]
+    pool_label = pool_label or group
     metrics = RADAR_METRICS.get(group, RADAR_METRICS["MF"])
     params = [label for _, label in metrics]
     values_a = [float(row_a[col]) for col, _ in metrics]
@@ -197,7 +205,7 @@ def radar_compare(
     _header(
         fig,
         f"{name_a}  vs  {name_b}",
-        f"{competition_label}  ·  Percentiles per-90 vs. {group} de la competición",
+        f"{competition_label}  ·  Percentiles per-90 vs. {pool_label} de la competición",
     )
     return fig
 
@@ -267,6 +275,83 @@ def style_map(
 
     _header(fig, "Mapa de estilo de la competición", subtitle + "  ·  tamaño ∝ % pases progresivos")
     fig.subplots_adjust(top=0.86)
+    return fig
+
+
+TEAM_RADAR_METRICS = [
+    ("pass_length_pct", "Pase\nlargo"),
+    ("long_pass_share_pct", "% pases\nlargos"),
+    ("passes_per_possession_pct", "Pases por\nposesión"),
+    ("ppda_pct", "Presión\n(PPDA inv.)"),
+    ("pressures_pm_pct", "Presiones"),
+    ("recovery_height_pct", "Altura de\nrecuperación"),
+    ("prog_pass_share_pct", "% pases\nprogresivos"),
+    ("prog_carries_pm_pct", "Conducciones\nprogresivas"),
+    ("final_third_pm_pct", "Entradas\núltimo tercio"),
+    ("field_tilt_pct", "Field\ntilt"),
+]
+
+
+def _team_bars(params: list[str], values: list[float], competition_label: str, team: str):
+    """Alternativa al radar cuando hay menos de tres métricas de estilo."""
+    fig, ax = plt.subplots(figsize=(8, 3 + 0.6 * max(len(params), 1)))
+    fig.set_facecolor(SURFACE)
+    ax.set_facecolor(SURFACE)
+    if params:
+        ax.barh(params, values, color=BLUE, alpha=0.8, height=0.5)
+        for y, v in enumerate(values):
+            ax.text(v + 1.5, y, f"{v:.0f}", va="center", fontsize=9, color=INK_2)
+    ax.set_xlim(0, 100)
+    ax.set_xlabel("Percentil en la competición", fontsize=9, color=INK_2)
+    ax.tick_params(colors=MUTED, labelsize=9)
+    for spine in ax.spines.values():
+        spine.set_color(GRID)
+    ax.grid(axis="x", color=GRID, linewidth=0.6, alpha=0.6)
+    _header(fig, team, f"{competition_label}  ·  Estilo de juego (datos limitados)")
+    fig.subplots_adjust(top=0.8, left=0.28)
+    return fig
+
+
+def team_radar(team_row: pd.Series, competition_label: str, team: str):
+    """Radar de estilo de un equipo: percentiles dentro de su competición."""
+    disponibles = [(c, lab) for c, lab in TEAM_RADAR_METRICS if c in team_row.index]
+    disponibles = [(c, lab) for c, lab in disponibles if pd.notna(team_row[c])]
+    params = [lab for _, lab in disponibles]
+    values = [float(team_row[c]) for c, _ in disponibles]
+
+    # el radar exige tres ejes; con menos métricas disponibles (datos pobres)
+    # caemos a barras en vez de dejar la página sin gráfico
+    if len(params) < 3:
+        return _team_bars(params, values, competition_label, team)
+
+    radar = Radar(
+        params,
+        min_range=[0] * len(params),
+        max_range=[100] * len(params),
+        round_int=[True] * len(params),
+        num_rings=4,
+        ring_width=1,
+        center_circle_radius=1,
+    )
+    fig, ax = radar.setup_axis(figsize=(8, 8.6))
+    fig.set_facecolor(SURFACE)
+    ax.set_facecolor(SURFACE)
+    radar.draw_circles(ax=ax, facecolor=RING, edgecolor=GRID)
+    radar.draw_radar(
+        values,
+        ax=ax,
+        kwargs_radar={"facecolor": BLUE, "alpha": 0.55, "edgecolor": BLUE, "linewidth": 2},
+        kwargs_rings={"facecolor": BLUE, "alpha": 0.08},
+    )
+    radar.draw_range_labels(ax=ax, fontsize=8, color=MUTED)
+    radar.draw_param_labels(ax=ax, fontsize=10, color=INK)
+
+    _header(
+        fig,
+        team,
+        f"{competition_label}  ·  Estilo de juego en percentiles de la competición\n"
+        "Un valor alto significa 'más de ese rasgo', no 'mejor'",
+    )
     return fig
 
 

@@ -38,8 +38,11 @@ def player_report_pdf(
     apodo = prow.get("nickname")
     display = display or (apodo if isinstance(apodo, str) and apodo else player)
 
+    rol = prow.get("role")
+    pool = str(rol).lower() + "s" if prow.get("pct_basis") == "role" and isinstance(rol, str) else None
+
     paneles = [
-        _fig_png(viz.radar_chart(prow, comp_label, display)),
+        _fig_png(viz.radar_chart(prow, comp_label, display, pool)),
         _fig_png(viz.shot_map(events, player, comp_label, display)),
         _fig_png(viz.touch_heatmap(events, player, comp_label, display)),
         _fig_png(viz.pass_map(events, player, comp_label, display)),
@@ -52,7 +55,6 @@ def player_report_pdf(
     fig = plt.figure(figsize=(8.27, 11.69))  # A4 vertical
     fig.set_facecolor(viz.SURFACE)
 
-    rol = prow.get("role")
     subtitulo = " · ".join(
         str(v)
         for v in (

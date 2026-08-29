@@ -146,12 +146,47 @@ with tab_fichajes:
                 int(comp["competition_id"]),
                 int(comp["season_id"]),
                 ctx["min_minutes"],
+                ctx["basis"],
             )
             partes.append(extra_table.assign(competition=label))
         pool = pd.concat(partes, ignore_index=True)
 
+    ajustar = True
+    if pool_labels:
+        ajustar = st.checkbox(
+            "Ajustar el nivel entre competiciones con jugadores puente",
+            value=True,
+            key="fit_adjust",
+            help=(
+                "Un percentil 80 no vale lo mismo en cada liga. Los jugadores presentes "
+                "en dos competiciones sirven de puente: la mediana de su diferencia de "
+                "nivel estima cuánto infla o desinfla cada una."
+            ),
+        )
+        offsets = fit.competition_offsets(pool, ctx["comp_label"])
+        for _, o in offsets.iterrows():
+            if o["competition"] == ctx["comp_label"]:
+                continue
+            if o["bridged"]:
+                st.caption(
+                    f"**{o['competition']}**: {o['n_bridge']} jugadores puente · "
+                    f"ajuste de nivel {o['offset']:+.1f} puntos de percentil."
+                )
+            else:
+                st.warning(
+                    f"**{o['competition']}**: solo {o['n_bridge']} jugadores en común con "
+                    f"{ctx['comp_label']}, insuficientes para estimar el ajuste. Sus "
+                    "percentiles se comparan sin corregir: trátalos como orientativos."
+                )
+
     fichajes = fit.players_for_team(
-        pool, events, equipo, None if grupo == "Todos" else grupo, w_estilo, axis_weights
+        pool,
+        events,
+        equipo,
+        None if grupo == "Todos" else grupo,
+        w_estilo,
+        axis_weights,
+        adjust_level=ajustar,
     )
     if "nickname" in fichajes.columns:
         fichajes["player"] = (

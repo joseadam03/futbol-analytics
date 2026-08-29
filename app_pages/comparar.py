@@ -28,7 +28,7 @@ rrow = table[table["player"] == rival].iloc[0]
 left, right = st.columns([3, 2])
 with left:
     ac.fig_and_download(
-        viz.radar_compare(prow, rrow, comp_label, display, display_of[rival]),
+        viz.radar_compare(prow, rrow, comp_label, display, display_of[rival], ctx["pool_label"]),
         "radar_comparado.png",
     )
 with right:
@@ -48,4 +48,4 @@ with right:
             }
         )
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-    st.caption("Valores per-90 y percentil (p) de cada jugador dentro del grupo posicional.")
+    st.caption(f"Valores per-90 y percentil (p) de cada jugador frente a los {ctx['pool_label']}.")

@@ -203,12 +203,35 @@ def player_metrics(
     return out
 
 
+MIN_ROLE_SIZE = 8
+
+
 def percentiles(
     metrics_df: pd.DataFrame,
     metric_cols: list[str],
     group_col: str = "position_group",
+    fallback_col: str = "position_group",
+    min_group: int = MIN_ROLE_SIZE,
 ) -> pd.DataFrame:
-    """Percentil (0-100) de cada métrica dentro del grupo posicional."""
-    pct = metrics_df.groupby(group_col)[metric_cols].rank(pct=True) * 100
-    pct.columns = [f"{c}_pct" for c in pct.columns]
-    return pd.concat([metrics_df, pct], axis=1)
+    """Percentil (0-100) de cada métrica dentro del grupo de comparación.
+
+    Con `group_col="role"` compara dentro del rol fino (un lateral con
+    laterales), que es más justo pero adelgaza la muestra. Cada jugador
+    cuyo grupo no llegue a `min_group` cae al grupo posicional: se
+    calculan ambos rangos y se elige por fila, de modo que quien cae
+    sigue comparándose contra *todo* su grupo posicional, no solo contra
+    los demás rezagados. La columna `pct_basis` registra qué base se usó.
+    """
+    cols = [c for c in metric_cols if c in metrics_df.columns]
+    pct = metrics_df.groupby(group_col, dropna=False)[cols].rank(pct=True) * 100
+
+    basis = pd.Series(group_col, index=metrics_df.index)
+    if group_col != fallback_col and fallback_col in metrics_df.columns:
+        tamanos = metrics_df.groupby(group_col, dropna=False)[group_col].transform("size")
+        usa_grupo = (tamanos >= min_group) & metrics_df[group_col].notna()
+        pct_fallback = metrics_df.groupby(fallback_col, dropna=False)[cols].rank(pct=True) * 100
+        pct = pct.where(usa_grupo, pct_fallback)
+        basis = basis.where(usa_grupo, fallback_col)
+
+    pct.columns = [f"{c}_pct" for c in cols]
+    return pd.concat([metrics_df, pct, basis.rename("pct_basis")], axis=1)

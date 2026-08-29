@@ -68,6 +68,7 @@ class FakeProvider(Provider):
         rng = np.random.default_rng(7)
         rows: list[dict] = []
         next_id = iter(range(1, 10_000_000))
+        next_possession = iter(range(1, 10_000_000))
 
         def evento(**kw) -> dict:
             base = {
@@ -94,6 +95,7 @@ class FakeProvider(Provider):
                 "shot_key_pass_id": None,
                 "ball_recovery_recovery_failure": None,
                 "shot_body_part": None,
+                "possession": None,
             }
             base.update(kw)
             rows.append(base)
@@ -113,6 +115,7 @@ class FakeProvider(Provider):
                         "team": equipo,
                         "player": jugador,
                         "position": posicion,
+                        "possession": next(next_possession),
                     }
                     x_base = 25.0 + 7.0 * i  # los de arriba juegan más adelante
 

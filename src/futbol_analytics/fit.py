@@ -41,8 +41,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from .metrics import SET_PIECE_PASS_TYPES, is_progressive
-from .teams import team_metrics
+from .teams import team_metrics, team_style_metrics
 
 STYLE_AXES = ["posesion", "presion", "verticalidad"]
 
@@ -115,16 +114,8 @@ def _pool_keys(table: pd.DataFrame, extra: list[str]) -> list[str]:
 def team_style(events: pd.DataFrame) -> pd.DataFrame:
     """Por equipo: contexto crudo (posesión, PPDA, npxG...) + ejes de estilo (sufijo _z)."""
     base = team_metrics(events).set_index("team")
-
-    ev = events[(events["period"] <= 4) & events["team"].notna()]
-    passes = ev[(ev["type"] == "Pass") & ev["location"].notna() & ev["pass_end_location"].notna()]
-    if "pass_outcome" in passes.columns:
-        passes = passes[passes["pass_outcome"].isna()]
-    if "pass_type" in passes.columns:
-        passes = passes[~passes["pass_type"].isin(SET_PIECE_PASS_TYPES)]
-    prog = is_progressive(passes["location"], passes["pass_end_location"])
-    share = pd.DataFrame({"team": passes["team"], "prog": prog}).groupby("team")["prog"].mean()
-    base["prog_share"] = (100 * share).reindex(base.index)
+    estilo = team_style_metrics(events).set_index("team")
+    base["prog_share"] = estilo["prog_pass_share"].reindex(base.index)
 
     base["posesion_z"] = _z(base["possession"])
     ppda = base["ppda"].fillna(base["ppda"].median())
@@ -216,6 +207,53 @@ def _nivel_puesto(
     return 50.0
 
 
+MIN_BRIDGE_PLAYERS = 3
+
+
+def competition_offsets(
+    pool: pd.DataFrame,
+    reference: str,
+    min_players: int = MIN_BRIDGE_PLAYERS,
+) -> pd.DataFrame:
+    """Desplazamiento de nivel de cada competición frente a la de referencia.
+
+    Los percentiles son relativos a su propia competición: un 80 en una liga
+    menor no vale lo mismo que un 80 en una mayor. Para corregirlo sin
+    inventar coeficientes, se usa el truco clásico de *linking* por elementos
+    comunes: los **jugadores puente**, presentes en ambas competiciones. Si un
+    jugador rinde en el percentil 60 en la de referencia y en el 85 en la otra,
+    esos 25 puntos son inflación de la segunda. El desplazamiento es la
+    mediana de esa diferencia entre todos los puentes (robusta a casos raros).
+
+    Devuelve una fila por competición con el desplazamiento (`offset`, a sumar
+    a sus percentiles), cuántos puentes lo sustentan y si hay puente. Las
+    competiciones sin puentes suficientes quedan con offset 0 y `bridged=False`:
+    la app lo dice en vez de fingir una corrección que no puede calcular.
+    """
+    filas = []
+    if "competition" not in pool.columns:
+        return pd.DataFrame(columns=["competition", "offset", "n_bridge", "bridged"])
+
+    nivel = pd.Series(0.0, index=pool.index)
+    for g, sub in pool.groupby("position_group"):
+        nivel.loc[sub.index] = _key_pct_mean(sub, g)
+    aux = pool[["player", "competition"]].assign(nivel=nivel)
+    ref = aux[aux["competition"] == reference].groupby("player")["nivel"].mean()
+
+    for comp, sub in aux.groupby("competition"):
+        if comp == reference:
+            filas.append({"competition": comp, "offset": 0.0, "n_bridge": 0, "bridged": True})
+            continue
+        niveles = sub.groupby("player")["nivel"].mean()
+        puentes = niveles.index.intersection(ref.index)
+        if len(puentes) >= min_players:
+            offset = float((ref[puentes] - niveles[puentes]).median())
+            filas.append({"competition": comp, "offset": offset, "n_bridge": len(puentes), "bridged": True})
+        else:
+            filas.append({"competition": comp, "offset": 0.0, "n_bridge": len(puentes), "bridged": False})
+    return pd.DataFrame(filas)
+
+
 def _combine(estilo: pd.Series, mejora: pd.Series, w_estilo: float = 0.5) -> pd.Series:
     """Encaje 0-100: percentil de la combinación ponderada de componentes estandarizados."""
     w = min(max(float(w_estilo), 0.0), 1.0)
@@ -272,10 +310,15 @@ def players_for_team(
     group: str | None = None,
     w_estilo: float = 0.5,
     axis_weights: dict[str, float] | None = None,
+    adjust_level: bool = True,
 ) -> pd.DataFrame:
     """Ranking de fichajes para un equipo, con desglose. La tabla puede ser un
     pool multi-competición (columna ``competition``); el equipo destino debe
-    pertenecer a la competición de la que provienen ``events``."""
+    pertenecer a la competición de la que provienen ``events``.
+
+    Con `adjust_level`, los percentiles de las competiciones ajenas se corrigen
+    con `competition_offsets` (jugadores puente) antes de calcular la mejora
+    del puesto; las columnas `offset` y `bridged` dejan ver el ajuste aplicado."""
     style_row = team_style(events).loc[team]
     traits = player_traits(table)
     desglose = style_breakdown(traits, style_row, axis_weights)
@@ -299,6 +342,14 @@ def players_for_team(
     for g, sub in table.groupby("position_group"):
         nivel_jugador.loc[sub.index] = _key_pct_mean(sub, g)
     out["nivel_jugador"] = nivel_jugador
+
+    # el nivel de otras competiciones se corrige con los jugadores puente
+    if adjust_level and "competition" in table.columns and key_prefix:
+        offsets = competition_offsets(table, str(key_prefix[0])).set_index("competition")
+        out["offset"] = out["competition"].map(offsets["offset"]).fillna(0.0)
+        out["bridged"] = out["competition"].map(offsets["bridged"]).fillna(False)
+        out["nivel_jugador"] = (out["nivel_jugador"] + out["offset"]).clip(0, 100)
+
     out["mejora_puesto"] = [
         row["nivel_jugador"]
         - _nivel_puesto(por_grupo, por_rol, key_prefix, team, row.get("role"), row["position_group"])

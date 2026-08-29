@@ -50,6 +50,12 @@ def main() -> None:
     parser.add_argument("--competition", type=int, default=43, help="competition_id de StatsBomb")
     parser.add_argument("--season", type=int, default=106, help="season_id de StatsBomb")
     parser.add_argument("--min-minutes", type=float, default=180, help="Mínimo de minutos para percentiles")
+    parser.add_argument(
+        "--basis",
+        default="position_group",
+        choices=["position_group", "role"],
+        help="Comparar percentiles dentro del grupo posicional o del rol fino",
+    )
     parser.add_argument("--refresh", action="store_true", help="Ignorar caché y volver a descargar")
     args = parser.parse_args()
 
@@ -67,7 +73,7 @@ def main() -> None:
 
     table = metrics.player_metrics(events, minutes, min_minutes=args.min_minutes)
     pct_cols = [f"{m}_p90" for m in metrics.COUNT_METRICS] + ["pass_pct", "npxg_per_shot"]
-    table = metrics.percentiles(table, pct_cols)
+    table = metrics.percentiles(table, pct_cols, group_col=args.basis)
 
     player = find_player(table["player"].tolist(), args.player)
     prow = table[table["player"] == player].iloc[0]

@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from futbol_analytics import metrics
 from futbol_analytics.metrics import (
     is_progressive,
     position_group,
@@ -75,3 +76,77 @@ def test_similar_players_finds_the_clone():
 
     top = similar_players(df, "J0", n=3, features=["npxg_p90", "xa_p90", "pressures_p90"])
     assert top.iloc[0]["player"] == "J5"
+
+
+def _jugadores(roles, metrica="npxg_p90"):
+    """Tabla mínima: (rol, grupo, valor) por jugador."""
+    filas = [
+        {"player": f"J{i}", "role": rol, "position_group": grupo, metrica: valor}
+        for i, (rol, grupo, valor) in enumerate(roles)
+    ]
+    return pd.DataFrame(filas)
+
+
+def test_percentiles_por_grupo_es_el_comportamiento_por_defecto():
+    df = _jugadores([("Central", "DF", 1.0), ("Lateral", "DF", 2.0), ("Lateral", "DF", 3.0)])
+    out = metrics.percentiles(df, ["npxg_p90"])
+    assert out["npxg_p90_pct"].tolist() == pytest.approx([100 / 3, 200 / 3, 100.0])
+    assert set(out["pct_basis"]) == {"position_group"}
+
+
+def test_percentiles_por_rol_compara_dentro_del_rol():
+    # 8 centrales y 8 laterales: ambos roles superan el mínimo de muestra
+    roles = [("Central", "DF", float(i)) for i in range(8)]
+    roles += [("Lateral", "DF", 100.0 + i) for i in range(8)]
+    out = metrics.percentiles(_jugadores(roles), ["npxg_p90"], group_col="role")
+
+    assert set(out["pct_basis"]) == {"role"}
+    # el peor lateral tiene valor altísimo, pero dentro de su rol es el último
+    peor_lateral = out[out["role"] == "Lateral"].iloc[0]
+    assert peor_lateral["npxg_p90"] == 100.0
+    assert peor_lateral["npxg_p90_pct"] == pytest.approx(12.5)
+    # el mejor central es el 100 de su rol pese a tener valores bajos
+    assert out[out["role"] == "Central"]["npxg_p90_pct"].max() == pytest.approx(100.0)
+
+
+def test_rol_con_muestra_pequena_cae_al_grupo_posicional():
+    roles = [("Lateral", "DF", float(i)) for i in range(8)]  # rol grande
+    roles += [("Central", "DF", 3.5), ("Central", "DF", 7.5)]  # rol pequeño
+    out = metrics.percentiles(_jugadores(roles), ["npxg_p90"], group_col="role")
+
+    laterales = out[out["role"] == "Lateral"]
+    centrales = out[out["role"] == "Central"]
+    assert set(laterales["pct_basis"]) == {"role"}
+    assert set(centrales["pct_basis"]) == {"position_group"}
+    # los centrales se comparan contra TODO el grupo DF (los 10), no solo entre ellos:
+    # ordenados, 3.5 es el 5.º de 10 -> 50; 7.5 es el 10.º -> 100
+    assert sorted(centrales["npxg_p90_pct"].round().tolist()) == [50.0, 100.0]
+
+
+def test_percentiles_ignora_columnas_ausentes():
+    df = _jugadores([("Central", "DF", 1.0), ("Central", "DF", 2.0)])
+    out = metrics.percentiles(df, ["npxg_p90", "no_existe"])
+    assert "npxg_p90_pct" in out.columns
+    assert "no_existe_pct" not in out.columns
+
+
+@pytest.mark.parametrize(
+    ("position", "role"),
+    [
+        ("Goalkeeper", "Portero"),
+        ("Right Center Back", "Central"),
+        ("Left Back", "Lateral"),
+        ("Right Wing Back", "Lateral"),
+        ("Center Defensive Midfield", "Pivote"),
+        ("Center Attacking Midfield", "Mediapunta"),
+        ("Left Center Midfield", "Interior"),
+        ("Right Wing", "Extremo"),
+        ("Center Forward", "Delantero"),
+    ],
+)
+def test_position_role(position, role):
+    assert metrics.position_role(position) == role
+
+
+def test_position_role_nan():
+    assert pd.isna(metrics.position_role(np.nan))
