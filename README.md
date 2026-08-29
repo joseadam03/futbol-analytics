@@ -1,0 +1,151 @@
+# futbol-analytics
+
+Aplicación de análisis de rendimiento de jugadores sobre
+[StatsBomb open data](https://github.com/statsbomb/open-data): métricas per-90,
+percentiles por grupo posicional, comparador de jugadores, motor de similitud y
+visualizaciones sobre el campo — con interfaz web, CLI y arquitectura preparada
+para más proveedores de datos (Wyscout).
+
+> Proyecto de portafolio. El objetivo no es acumular gráficos, sino medir bien:
+> cada métrica está definida abajo, con sus supuestos y sus limitaciones.
+
+## La app
+
+```bash
+pip install -e .
+streamlit run streamlit_app.py
+```
+
+- **Radar** de percentiles per-90 del jugador frente a su grupo posicional.
+- **Mapas** sobre el campo: calor de toques, pases progresivos/clave, tiros (tamaño ∝ xG).
+- **Comparar**: radar superpuesto de dos jugadores (por defecto, el más similar)
+  con tabla de valores y percentiles lado a lado.
+- **Similares**: top-10 por similitud de coseno, con foto de cada jugador.
+- **Competición**: dispersión interactiva de todos los jugadores (ejes a elegir,
+  tooltip con nombre) y tabla completa descargable en CSV.
+- **Modo claro y oscuro**: los gráficos siguen el tema del usuario con una paleta
+  validada para accesibilidad y daltonismo en ambas variantes.
+- Fotos de jugadores vía TheSportsDB (gratuita; puede faltar alguna).
+
+También en Docker:
+
+```bash
+docker build -t futbol-analytics .
+docker run -p 8501:8501 futbol-analytics
+```
+
+## El CLI
+
+Para generar un informe estático (PNGs + CSVs) de cualquier jugador:
+
+```bash
+python scripts/player_report.py --player "Messi"
+python scripts/player_report.py --player "Aitana" --competition 72 --season 107
+```
+
+| Salida | Contenido |
+|---|---|
+| `radar.png` | Percentiles per-90 frente a jugadores de su mismo grupo posicional |
+| `mapa_calor.png` | Densidad de toques sobre el campo |
+| `mapa_pases.png` | Pases progresivos y pases que generaron tiro |
+| `mapa_tiros.png` | Tiros sin penaltis, tamaño proporcional al xG |
+| `similares.csv` | Top-10 jugadores con el perfil estadístico más parecido |
+| `metricas_competicion.csv` | Tabla completa de métricas de toda la competición |
+
+Por defecto se analiza el Mundial 2022 (`--competition 43 --season 106`). La
+primera descarga de una competición se cachea en `data/cache/` y las siguientes
+ejecuciones son instantáneas.
+
+## Proveedores de datos
+
+`src/futbol_analytics/providers/` define un contrato común (`base.py`): las
+métricas y visualizaciones consumen un esquema de eventos normalizado, de modo
+que añadir una fuente nueva no toca nada más.
+
+- **StatsBomb open data** — implementado, con caché local.
+- **Wyscout** — interfaz preparada; requiere credenciales de la API de Hudl
+  (`WYSCOUT_CLIENT_ID` / `WYSCOUT_CLIENT_SECRET`) e implementar el mapeo de
+  eventos documentado en `providers/wyscout.py`.
+
+## Metodología
+
+Reglas globales: se excluyen las tandas de penaltis (periodo 5) de todos los
+cálculos, y los penaltis dentro del juego de las métricas de tiro.
+
+- **Minutos jugados** — derivados de las alineaciones oficiales de StatsBomb
+  (titularidad, cambios y expulsiones), no estimados desde eventos. Todas las
+  métricas de volumen se normalizan a 90 minutos y los percentiles se calculan
+  solo entre jugadores con un mínimo de minutos (180 por defecto).
+- **npxG** — xG de StatsBomb acumulado, sin penaltis. `npxG/tiro` mide la
+  calidad media de las ocasiones que genera el jugador.
+- **xA (real)** — cada pase clave se enlaza con el tiro que generó mediante
+  `shot_key_pass_id` y hereda su xG. No es la aproximación "asistencias
+  esperadas = asistencias": mide la calidad del tiro generado, lo marque o no
+  el compañero.
+- **Pase/conducción progresiva** — acción que reduce la distancia del balón a
+  la portería rival en al menos un 25 % (portería en `x=120, y=40`). Se
+  excluyen saques de esquina, faltas, bandas y saques de puerta o de centro.
+  Las conducciones exigen además un desplazamiento mínimo de 5 unidades para
+  filtrar ruido.
+- **Entradas+Intercepciones ajustadas por posesión (PAdj)** — un jugador de un
+  equipo con 65 % de posesión tiene muchas menos oportunidades de defender que
+  uno de un equipo con 35 %. Se aplica el factor clásico
+  `0.5 / (1 − posesión propia)`, con la posesión estimada por cuota de pases.
+  Comparar acciones defensivas brutas entre equipos de posesión dispar es un
+  error habitual; este ajuste lo corrige de forma transparente.
+- **Toques en el área** — eventos con balón (pase, tiro, conducción, regate,
+  recepción) dentro del área rival.
+- **Percentiles** — rango percentil dentro del grupo posicional (GK/DF/MF/FW),
+  asignado por la posición más frecuente del jugador en los eventos.
+- **Jugadores similares** — z-score de cada métrica per-90 dentro del grupo
+  posicional y similitud de coseno entre perfiles: compara la *forma* del
+  perfil (a qué se dedica el jugador), no su volumen bruto.
+
+### Limitaciones conocidas
+
+- Los open data cubren competiciones concretas, no el fútbol de clubes actual
+  completo; los percentiles son *dentro de esa competición*.
+- En torneos cortos (un Mundial son como mucho 7 partidos) las métricas per-90
+  tienen mucha varianza; el umbral de minutos mitiga pero no elimina esto.
+- La posesión por cuota de pases es una aproximación razonable, no la posesión
+  oficial.
+- El grupo posicional agrupa roles distintos (un lateral y un central comparten
+  grupo DF). Con más datos, el siguiente paso natural es percentilar por rol.
+
+## Estructura
+
+```
+streamlit_app.py      # la app web
+src/futbol_analytics/
+  providers/          # contrato común + StatsBomb (implementado) + Wyscout (preparado)
+  metrics.py          # métricas per-90, PAdj, percentiles
+  similarity.py       # motor de jugadores similares
+  viz.py              # radar, comparador, mapa de calor, pases, tiros (tema claro/oscuro)
+  photos.py           # fotos de jugadores (TheSportsDB, con caché)
+scripts/
+  player_report.py    # CLI: informe estático de un jugador
+tests/                # tests unitarios de la lógica pura (sin red)
+.github/workflows/    # CI: ruff + pytest en cada push
+Dockerfile            # la app containerizada
+```
+
+## Desarrollo
+
+```bash
+pip install -e ".[dev]"
+ruff check src scripts tests
+pytest -q
+```
+
+## Hoja de ruta
+
+- Proveedor Wyscout completo (mapeo de eventos al esquema común)
+- Percentiles por rol (no solo por grupo posicional)
+- Informe de equipo (estilo de juego: ritmo, presión, progresión)
+- Modelo de xG propio para contrastar con el de StatsBomb
+
+## Créditos
+
+Datos: StatsBomb open data (uso no comercial, [términos](https://github.com/statsbomb/open-data/blob/master/LICENSE.pdf)).
+Visualización sobre campo: [mplsoccer](https://mplsoccer.readthedocs.io/).
+Fotos de jugadores: [TheSportsDB](https://www.thesportsdb.com/) (API gratuita, uso no comercial).
