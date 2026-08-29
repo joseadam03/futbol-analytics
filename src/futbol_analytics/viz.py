@@ -202,6 +202,132 @@ def radar_compare(
     return fig
 
 
+def style_map(
+    style: pd.DataFrame,
+    highlight: list[str] | None = None,
+    current_team: str | None = None,
+    subtitle: str = "",
+):
+    """Mapa de estilo de la competición: posesión vs presión, tamaño ∝ verticalidad.
+
+    `style` es la salida de fit.team_style (indexada por equipo). Los equipos en
+    `highlight` (p. ej. los mejores destinos de un jugador) van en azul; el
+    equipo actual, en naranja; el resto, en gris.
+    """
+    highlight = highlight or []
+    fig, ax = plt.subplots(figsize=(9, 6.4))
+    fig.set_facecolor(SURFACE)
+    ax.set_facecolor(SURFACE)
+
+    sizes = 60 + 14 * (style["prog_share"].fillna(style["prog_share"].median()))
+    for team, row in style.iterrows():
+        if team == current_team:
+            color, z = ORANGE, 3
+        elif team in highlight:
+            color, z = BLUE, 3
+        else:
+            color, z = MUTED, 2
+        ax.scatter(
+            row["possession"],
+            row["ppda"],
+            s=float(sizes.loc[team]),
+            facecolor=color,
+            edgecolor=SURFACE,
+            linewidth=0.8,
+            alpha=0.85,
+            zorder=z,
+        )
+        destacado = team in highlight or team == current_team
+        ax.annotate(
+            team,
+            (row["possession"], row["ppda"]),
+            xytext=(0, 7),
+            textcoords="offset points",
+            ha="center",
+            fontsize=8 if destacado else 7,
+            fontweight="bold" if destacado else "normal",
+            color=INK if destacado else INK_2,
+            zorder=4,
+        )
+
+    ax.invert_yaxis()  # arriba = más presión (PPDA bajo)
+    ax.set_xlabel("Posesión (%)", fontsize=9, color=INK_2)
+    ax.set_ylabel("PPDA (↑ más presión)", fontsize=9, color=INK_2)
+    ax.tick_params(colors=MUTED, labelsize=8)
+    for spine in ax.spines.values():
+        spine.set_color(GRID)
+    ax.grid(color=GRID, linewidth=0.6, alpha=0.6)
+
+    handles = [
+        Line2D([], [], marker="o", ls="", mfc=BLUE, mec=SURFACE, ms=9, label="Mejores destinos"),
+        Line2D([], [], marker="o", ls="", mfc=ORANGE, mec=SURFACE, ms=9, label="Equipo actual"),
+        Line2D([], [], marker="o", ls="", mfc=MUTED, mec=SURFACE, ms=9, label="Resto"),
+    ]
+    ax.legend(handles=handles, loc="best", fontsize=8, frameon=False, labelcolor=INK_2)
+
+    _header(fig, "Mapa de estilo de la competición", subtitle + "  ·  tamaño ∝ % pases progresivos")
+    fig.subplots_adjust(top=0.86)
+    return fig
+
+
+def calibration_chart(cal_own: pd.DataFrame, cal_sb: pd.DataFrame, subtitle: str = ""):
+    """Curva de fiabilidad: xG medio predicho vs frecuencia real de gol por tramo."""
+    fig, ax = plt.subplots(figsize=(7.5, 6))
+    fig.set_facecolor(SURFACE)
+    ax.set_facecolor(SURFACE)
+
+    tope = 0.05
+    for df in (cal_own, cal_sb):
+        if not df.empty:
+            tope = max(tope, float(df[["pred", "obs"]].max().max()))
+    tope = min(1.0, tope * 1.15)
+    ax.plot([0, tope], [0, tope], ls="--", lw=1, color=BASELINE, zorder=1)
+
+    for df, color, label in ((cal_own, BLUE, "xG propio"), (cal_sb, ORANGE, "xG StatsBomb")):
+        if df.empty:
+            continue
+        ax.plot(df["pred"], df["obs"], color=color, lw=2, marker="o", ms=5, label=label, zorder=3)
+
+    ax.set_xlim(0, tope)
+    ax.set_ylim(0, tope)
+    ax.set_xlabel("xG medio predicho en el tramo", fontsize=9, color=INK_2)
+    ax.set_ylabel("Frecuencia real de gol", fontsize=9, color=INK_2)
+    ax.tick_params(colors=MUTED, labelsize=8)
+    for spine in ax.spines.values():
+        spine.set_color(GRID)
+    ax.grid(color=GRID, linewidth=0.6, alpha=0.6)
+    ax.legend(loc="upper left", fontsize=9, frameon=False, labelcolor=INK_2)
+
+    _header(fig, "Curva de calibración", subtitle + "  ·  la diagonal es la calibración perfecta")
+    fig.subplots_adjust(top=0.86)
+    return fig
+
+
+def xg_scatter(shots: pd.DataFrame, subtitle: str = ""):
+    """xG propio (out-of-fold) frente al xG del proveedor, tiro a tiro."""
+    fig, ax = plt.subplots(figsize=(7.5, 6))
+    fig.set_facecolor(SURFACE)
+    ax.set_facecolor(SURFACE)
+
+    datos = shots.dropna(subset=["sb_xg", "xg_own"])
+    tope = min(1.0, float(datos[["sb_xg", "xg_own"]].max().max()) * 1.1) if not datos.empty else 1.0
+    ax.plot([0, tope], [0, tope], ls="--", lw=1, color=BASELINE, zorder=1)
+    ax.scatter(datos["sb_xg"], datos["xg_own"], s=24, facecolor=BLUE, alpha=0.45, edgecolor="none", zorder=2)
+
+    ax.set_xlim(0, tope)
+    ax.set_ylim(0, tope)
+    ax.set_xlabel("xG de StatsBomb", fontsize=9, color=INK_2)
+    ax.set_ylabel("xG propio (out-of-fold)", fontsize=9, color=INK_2)
+    ax.tick_params(colors=MUTED, labelsize=8)
+    for spine in ax.spines.values():
+        spine.set_color(GRID)
+    ax.grid(color=GRID, linewidth=0.6, alpha=0.6)
+
+    _header(fig, "xG propio vs xG del proveedor", subtitle)
+    fig.subplots_adjust(top=0.86)
+    return fig
+
+
 def _player_events(events: pd.DataFrame, player: str) -> pd.DataFrame:
     ev = events[(events["player"] == player) & (events["period"] <= 4)]
     return ev[ev["location"].notna()]

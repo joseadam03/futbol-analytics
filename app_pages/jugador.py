@@ -12,6 +12,24 @@ display_of, comp_label = ctx["display_of"], ctx["comp_label"]
 
 ac.player_header(ctx)
 
+if st.button("🖨️ Generar informe-CV en PDF", key="btn_pdf"):
+    with st.spinner("Componiendo el informe..."):
+        pdf = ac.informe_pdf(
+            ctx["provider_key"],
+            int(ctx["comp"]["competition_id"]),
+            int(ctx["comp"]["season_id"]),
+            ctx["min_minutes"],
+            player,
+            comp_label,
+        )
+    st.download_button(
+        "⬇ Descargar informe.pdf",
+        pdf,
+        file_name=f"informe_{display}.pdf",
+        mime="application/pdf",
+        key="dl_pdf",
+    )
+
 cols = st.columns(5)
 for col, (label, value, pct) in zip(
     cols,

@@ -10,9 +10,13 @@ install:  ## dependencias fijadas + paquete editable + hooks de pre-commit
 	pip install --no-deps -e .
 	pre-commit install
 
-lint:  ## ruff check + comprobación de formato
+lint:  ## ruff check + formato + tipos (lo mismo que la CI)
 	ruff check src scripts tests streamlit_app.py app_common.py app_pages
 	ruff format --check .
+	mypy src scripts app_common.py streamlit_app.py
+
+audit:  ## auditoría de vulnerabilidades de las dependencias fijadas
+	pip-audit -r requirements.txt --progress-spinner off
 
 format:  ## aplica formato y autofixes de ruff
 	ruff format .
@@ -23,6 +27,12 @@ test:  ## tests con cobertura
 
 run:  ## la app en local
 	streamlit run streamlit_app.py
+
+demo:  ## la app con la liga sintética (sin descargas, para enseñar)
+	FUTBOL_ANALYTICS_FAKE=1 streamlit run streamlit_app.py
+
+warm:  ## precalienta la caché de datos (make warm, o COMP=72 SEASON=107)
+	python scripts/warm_cache.py --competition $(or $(COMP),43) --season $(or $(SEASON),106)
 
 report:  ## informe CLI de ejemplo (make report PLAYER="Messi")
 	python scripts/player_report.py --player "$(or $(PLAYER),Messi)"

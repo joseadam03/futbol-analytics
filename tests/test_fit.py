@@ -1,6 +1,7 @@
 """Tests del motor de encaje jugador–equipo con datos sintéticos (sin red)."""
 
 import pandas as pd
+import pytest
 
 from futbol_analytics import fit
 
@@ -154,3 +155,137 @@ def test_fichajes_excluyen_a_los_propios_y_ordenan_por_encaje():
 def test_mejora_del_puesto_neutral_con_percentiles_iguales():
     destinos = fit.teams_for_player(tabla_fw(), eventos_dos_estilos(), "Pressy")
     assert destinos["mejora_puesto"].abs().max() == 0.0
+
+
+def test_squad_level_pondera_por_minutos():
+    base = {c: 40.0 for c in fit.GROUP_KEY_PCT["FW"]}
+    top = {c: 80.0 for c in fit.GROUP_KEY_PCT["FW"]}
+    df = pd.DataFrame(
+        [
+            {"player": "Titular", "team": "A", "position_group": "FW", "minutes": 900.0, **base},
+            {"player": "Suplente", "team": "A", "position_group": "FW", "minutes": 90.0, **top},
+        ]
+    )
+    nivel = fit.squad_level(df).iloc[0]["nivel"]
+    assert nivel == pytest.approx((40 * 900 + 80 * 90) / 990)
+
+
+def test_mejora_usa_rol_fino_con_fallback():
+    def defensa(nombre, equipo, rol, pct, minutos=900.0):
+        fila = {c: pct for c in fit.GROUP_KEY_PCT["DF"]}
+        return {
+            "player": nombre,
+            "team": equipo,
+            "primary_position": "?",
+            "position_group": "DF",
+            "role": rol,
+            "minutes": minutos,
+            **fila,
+        }
+
+    tabla = pd.DataFrame(
+        [
+            defensa("Central A", "A", "Central", 80.0),
+            defensa("Lateral A", "A", "Lateral", 30.0),
+            defensa("Lateral B", "B", "Lateral", 60.0),
+            defensa("Mediocentro B", "B", "Pivote", 60.0),
+        ]
+    )
+    fichajes = fit.players_for_team(tabla, eventos_dos_estilos(), "A")
+    lateral = fichajes[fichajes["player"] == "Lateral B"].iloc[0]
+    pivote = fichajes[fichajes["player"] == "Mediocentro B"].iloc[0]
+    # el lateral se compara con el lateral de A (30), no con la media del grupo DF (55)
+    assert lateral["mejora_puesto"] == pytest.approx(30.0)
+    # A no tiene pivotes: caída al nivel del grupo DF ponderado (55)
+    assert pivote["mejora_puesto"] == pytest.approx(60.0 - 55.0)
+
+
+def test_w_estilo_extremos_cambian_el_ranking():
+    def delantero(nombre, equipo, pct, **traits):
+        fila = {c: pct for c in fit.GROUP_KEY_PCT["FW"]}
+        return {
+            "player": nombre,
+            "team": equipo,
+            "primary_position": "Center Forward",
+            "position_group": "FW",
+            "minutes": 900.0,
+            **fila,
+            **traits,
+        }
+
+    tabla = pd.DataFrame(
+        [
+            delantero("Ancla A", "A", 50.0, pressures_p90=5.0, pass_pct=75.0),
+            delantero("Estiloso", "B", 30.0, pressures_p90=9.0, pass_pct=90.0, prog_passes_p90=6.0),
+            delantero("Productivo", "B", 90.0, pressures_p90=1.0, pass_pct=60.0, prog_passes_p90=1.0),
+            delantero("Relleno", "C", 50.0, pressures_p90=5.0, pass_pct=75.0, prog_passes_p90=3.0),
+        ]
+    )
+    ev = eventos_dos_estilos()
+    solo_estilo = fit.players_for_team(tabla, ev, "A", w_estilo=1.0)
+    solo_mejora = fit.players_for_team(tabla, ev, "A", w_estilo=0.0)
+    assert solo_estilo.iloc[0]["player"] == "Estiloso"
+    assert solo_mejora.iloc[0]["player"] == "Productivo"
+
+
+def test_axis_weights_anulan_ejes():
+    style = fit.team_style(eventos_dos_estilos())
+    traits = fit.player_traits(tabla_fw())
+    desglose = fit.style_breakdown(traits, style.loc["A"], axis_weights={"presion": 0.0, "verticalidad": 0.0})
+    assert (desglose["presion"] == 0.0).all()
+    assert (desglose["verticalidad"] == 0.0).all()
+    assert desglose["estilo"].equals(desglose["posesion"])
+
+
+def test_pool_multicompeticion_estandariza_dentro_de_cada_comp():
+    def fw(nombre, equipo, comp, presiones):
+        return {
+            "player": nombre,
+            "team": equipo,
+            "competition": comp,
+            "position_group": "FW",
+            "minutes": 900.0,
+            "pressures_p90": presiones,
+        }
+
+    pool = pd.DataFrame(
+        [
+            fw("X1", "A", "C1", 9.0),
+            fw("X2", "B", "C1", 1.0),
+            fw("Y1", "D", "C2", 5.0),
+            fw("Y2", "E", "C2", 5.0),
+        ]
+    )
+    traits = fit.player_traits(pool)
+    assert traits[traits["player"] == "X1"].iloc[0]["pressures_p90"] > 0
+    # en C2 todos presionan igual: z = 0 dentro de su competición
+    assert traits[traits["player"] == "Y1"].iloc[0]["pressures_p90"] == pytest.approx(0.0)
+
+
+def test_pool_multicompeticion_en_players_for_team():
+    def fw(nombre, equipo, comp, pct):
+        fila = {c: pct for c in fit.GROUP_KEY_PCT["FW"]}
+        return {
+            "player": nombre,
+            "team": equipo,
+            "competition": comp,
+            "primary_position": "CF",
+            "position_group": "FW",
+            "minutes": 900.0,
+            **fila,
+        }
+
+    pool = pd.DataFrame(
+        [
+            fw("Ancla A", "A", "C1", 50.0),
+            fw("Cand B", "B", "C1", 60.0),
+            fw("Cand D", "D", "C2", 70.0),
+            fw("Cand E", "E", "C2", 30.0),
+        ]
+    )
+    fichajes = fit.players_for_team(pool, eventos_dos_estilos(), "A")
+    assert "competition" in fichajes.columns
+    assert set(fichajes["player"]) == {"Cand B", "Cand D", "Cand E"}
+    d = fichajes[fichajes["player"] == "Cand D"].iloc[0]
+    # nivel del puesto del destino (A, FW en C1) = 55 ponderado... A solo tiene a Ancla (50)
+    assert d["mejora_puesto"] == pytest.approx(70.0 - 50.0)

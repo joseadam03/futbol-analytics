@@ -90,3 +90,16 @@ def test_save_crea_el_png(tmp_path):
     destino = tmp_path / "informes" / "radar.png"
     viz.save(fig, destino)
     assert destino.exists() and destino.stat().st_size > 0
+
+
+def test_style_map():
+    style = pd.DataFrame(
+        {
+            "possession": [60.0, 40.0, 50.0],
+            "ppda": [6.0, 14.0, 10.0],
+            "prog_share": [8.0, 15.0, 11.0],
+        },
+        index=pd.Index(["A", "B", "C"], name="team"),
+    )
+    fig = viz.style_map(style, highlight=["B"], current_team="A", subtitle="Test")
+    assert fig is not None

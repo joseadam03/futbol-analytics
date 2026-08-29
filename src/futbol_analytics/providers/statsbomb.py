@@ -28,6 +28,9 @@ class StatsBombProvider(Provider):
     def competitions(self) -> pd.DataFrame:
         return sb.competitions()
 
+    def has_cached(self, competition_id: int, season_id: int) -> bool:
+        return (CACHE_DIR / f"events_{competition_id}_{season_id}.pkl").exists()
+
     def matches(self, competition_id: int, season_id: int) -> pd.DataFrame:
         return sb.matches(competition_id=competition_id, season_id=season_id)
 

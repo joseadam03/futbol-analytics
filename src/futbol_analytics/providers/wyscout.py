@@ -52,6 +52,9 @@ class WyscoutProvider(Provider):
     def available(self) -> bool:
         return bool(self._auth[0] and self._auth[1])
 
+    def has_cached(self, competition_id: int, season_id: int) -> bool:
+        return (CACHE_DIR / f"wyscout_events_{competition_id}_{season_id}.pkl").exists()
+
     def _get(self, path: str, **params) -> dict:
         resp = requests.get(f"{API_BASE}{path}", auth=self._auth, params=params, timeout=30)
         resp.raise_for_status()

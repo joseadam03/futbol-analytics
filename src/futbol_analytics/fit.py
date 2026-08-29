@@ -14,19 +14,26 @@ equipo. El encaje combina dos componentes:
    recuperaciones; uno posesivo, fiabilidad y progresión en el pase; uno
    vertical, conducción, regate y llegada. El componente de estilo es el
    producto z_equipo · AFFINITY · z_jugador: positivo cuando el jugador
-   hace mucho de lo que el estilo del equipo pide.
+   hace mucho de lo que el estilo del equipo pide. Los ejes admiten
+   pesos configurables (axis_weights) para explorar los supuestos.
 
 2. **Mejora del puesto** — percentil medio del jugador en las métricas
    clave de su grupo posicional (las mismas del radar) menos el nivel
-   medio de los jugadores que el equipo ya tiene en ese grupo. Positivo
-   significa que sube el nivel de la posición. Si el equipo no tiene
-   jugadores de ese grupo en la tabla, se compara contra la media de la
-   competición (percentil 50).
+   del puesto en el equipo de destino: la media de sus jugadores del
+   mismo **rol fino** (un lateral no compite con un central),
+   **ponderada por minutos** (el titular pesa más que el suplente).
+   Sin jugadores de ese rol, se compara contra el grupo posicional; sin
+   grupo, contra la media de la competición (percentil 50).
 
-El encaje final (0-100) es el percentil de la media de ambos componentes
-estandarizados dentro del conjunto comparado: ordena destinos o
-fichajes *dentro de la competición cargada*, no tasa mercados reales.
-Limitaciones completas en la página de Metodología.
+El encaje final (0-100) es el percentil de la combinación ponderada
+(w_estilo, por defecto 0.5) de ambos componentes estandarizados dentro
+del conjunto comparado: ordena destinos o fichajes *dentro del pool
+analizado*, no tasa mercados reales.
+
+Si la tabla trae una columna ``competition`` (pool multi-competición),
+los z-scores y niveles se calculan dentro de la competición de origen de
+cada jugador: comparar percentiles entre competiciones de nivel dispar
+es una aproximación, y así se documenta en la app.
 """
 
 from __future__ import annotations
@@ -100,6 +107,11 @@ def _z(s: pd.Series) -> pd.Series:
     return (s - s.mean()) / std
 
 
+def _pool_keys(table: pd.DataFrame, extra: list[str]) -> list[str]:
+    """Claves de agrupación: dentro de la competición de origen si el pool es multi-comp."""
+    return (["competition"] if "competition" in table.columns else []) + extra
+
+
 def team_style(events: pd.DataFrame) -> pd.DataFrame:
     """Por equipo: contexto crudo (posesión, PPDA, npxG...) + ejes de estilo (sufijo _z)."""
     base = team_metrics(events).set_index("team")
@@ -122,22 +134,28 @@ def team_style(events: pd.DataFrame) -> pd.DataFrame:
 
 
 def player_traits(table: pd.DataFrame) -> pd.DataFrame:
-    """Rasgos per-90 del jugador estandarizados dentro de su grupo posicional."""
+    """Rasgos per-90 estandarizados dentro del grupo posicional (y competición de origen)."""
+    keys = _pool_keys(table, ["position_group"])
     traits = table[["player", "team", "position_group"]].copy()
     for col in TRAIT_COLS:
         if col in table.columns:
-            traits[col] = table.groupby("position_group")[col].transform(_z)
+            traits[col] = table.groupby(keys)[col].transform(_z)
         else:
             traits[col] = 0.0
     return traits
 
 
-def style_breakdown(traits: pd.DataFrame, style_row: pd.Series) -> pd.DataFrame:
+def style_breakdown(
+    traits: pd.DataFrame,
+    style_row: pd.Series,
+    axis_weights: dict[str, float] | None = None,
+) -> pd.DataFrame:
     """Aporte de cada eje de estilo (y el total) de cada jugador para un equipo."""
+    axis_weights = axis_weights or {}
     out = pd.DataFrame(index=traits.index)
     for axis, pesos in AFFINITY.items():
         demanda = sum(w * traits[col] for col, w in pesos.items())
-        out[axis] = float(style_row[f"{axis}_z"]) * demanda
+        out[axis] = float(axis_weights.get(axis, 1.0)) * float(style_row[f"{axis}_z"]) * demanda
     out["estilo"] = out[STYLE_AXES].sum(axis=1)
     return out
 
@@ -149,35 +167,84 @@ def _key_pct_mean(df: pd.DataFrame, group: str) -> pd.Series:
     return df[cols].mean(axis=1)
 
 
-def squad_level(table: pd.DataFrame) -> pd.DataFrame:
-    """Nivel medio (percentil clave) de cada (equipo, grupo posicional)."""
-    rows = [
-        {"team": team, "position_group": group, "nivel": float(_key_pct_mean(sub, group).mean())}
-        for (team, group), sub in table.groupby(["team", "position_group"])
-    ]
+def squad_level(table: pd.DataFrame, by: str = "position_group") -> pd.DataFrame:
+    """Nivel del puesto por (equipo, `by`): percentil clave medio ponderado por minutos."""
+    rows = []
+    keys = _pool_keys(table, ["team", by])
+    for key, sub in table.groupby(keys):
+        group = sub["position_group"].mode().iloc[0]
+        pcts = _key_pct_mean(sub, group)
+        pesos = sub["minutes"].clip(lower=1.0)
+        rows.append(
+            {
+                **dict(zip(keys, key if isinstance(key, tuple) else (key,))),
+                "nivel": float(np.average(pcts, weights=pesos)),
+            }
+        )
     return pd.DataFrame(rows)
 
 
-def _combine(estilo: pd.Series, mejora: pd.Series) -> pd.Series:
-    """Encaje 0-100: percentil de la media de ambos componentes estandarizados."""
-    total = (_z(estilo) + _z(mejora)) / 2
+def _nivel_lookup(table: pd.DataFrame) -> tuple[pd.Series, pd.Series | None]:
+    """Niveles por (equipo, grupo) y, si hay columna de rol, por (equipo, rol)."""
+    por_grupo = squad_level(table, by="position_group").set_index(
+        _pool_keys(table, ["team", "position_group"])
+    )["nivel"]
+    por_rol = None
+    if "role" in table.columns and table["role"].notna().any():
+        por_rol = squad_level(table.dropna(subset=["role"]), by="role").set_index(
+            _pool_keys(table, ["team", "role"])
+        )["nivel"]
+    return por_grupo, por_rol
+
+
+def _nivel_puesto(
+    por_grupo: pd.Series,
+    por_rol: pd.Series | None,
+    key_prefix: tuple,
+    team: str,
+    role,
+    group: str,
+) -> float:
+    """Rol fino si el equipo tiene jugadores de ese rol; si no, grupo; si no, 50."""
+    if por_rol is not None and isinstance(role, str):
+        clave = (*key_prefix, team, role)
+        if clave in por_rol.index:
+            return float(por_rol.loc[clave])
+    clave = (*key_prefix, team, group)
+    if clave in por_grupo.index:
+        return float(por_grupo.loc[clave])
+    return 50.0
+
+
+def _combine(estilo: pd.Series, mejora: pd.Series, w_estilo: float = 0.5) -> pd.Series:
+    """Encaje 0-100: percentil de la combinación ponderada de componentes estandarizados."""
+    w = min(max(float(w_estilo), 0.0), 1.0)
+    total = w * _z(estilo) + (1 - w) * _z(mejora)
     return (100 * total.rank(pct=True)).round(0)
 
 
-def teams_for_player(table: pd.DataFrame, events: pd.DataFrame, player: str) -> pd.DataFrame:
+def teams_for_player(
+    table: pd.DataFrame,
+    events: pd.DataFrame,
+    player: str,
+    w_estilo: float = 0.5,
+    axis_weights: dict[str, float] | None = None,
+) -> pd.DataFrame:
     """Ranking de equipos de la competición para un jugador, con desglose."""
     style = team_style(events)
     traits = player_traits(table)
     prow = table[table["player"] == player].iloc[0]
     ptraits = traits[traits["player"] == player]
     group = prow["position_group"]
+    role = prow.get("role")
     nivel_jugador = float(_key_pct_mean(table[table["player"] == player], group).iloc[0])
-    niveles = squad_level(table).set_index(["team", "position_group"])["nivel"]
+    por_grupo, por_rol = _nivel_lookup(table)
+    key_prefix: tuple = (prow["competition"],) if "competition" in table.columns else ()
 
     rows = []
     for team, style_row in style.iterrows():
-        desglose = style_breakdown(ptraits, style_row).iloc[0]
-        nivel_puesto = float(niveles.get((team, group), 50.0))
+        desglose = style_breakdown(ptraits, style_row, axis_weights).iloc[0]
+        nivel_puesto = _nivel_puesto(por_grupo, por_rol, key_prefix, team, role, group)
         rows.append(
             {
                 "team": team,
@@ -194,7 +261,7 @@ def teams_for_player(table: pd.DataFrame, events: pd.DataFrame, player: str) -> 
             }
         )
     out = pd.DataFrame(rows)
-    out["encaje"] = _combine(out["estilo"], out["mejora_puesto"])
+    out["encaje"] = _combine(out["estilo"], out["mejora_puesto"], w_estilo)
     return out.sort_values("encaje", ascending=False).reset_index(drop=True)
 
 
@@ -203,22 +270,38 @@ def players_for_team(
     events: pd.DataFrame,
     team: str,
     group: str | None = None,
+    w_estilo: float = 0.5,
+    axis_weights: dict[str, float] | None = None,
 ) -> pd.DataFrame:
-    """Ranking de fichajes de la competición para un equipo, con desglose."""
+    """Ranking de fichajes para un equipo, con desglose. La tabla puede ser un
+    pool multi-competición (columna ``competition``); el equipo destino debe
+    pertenecer a la competición de la que provienen ``events``."""
     style_row = team_style(events).loc[team]
     traits = player_traits(table)
-    desglose = style_breakdown(traits, style_row)
-    niveles = squad_level(table).set_index(["team", "position_group"])["nivel"]
+    desglose = style_breakdown(traits, style_row, axis_weights)
+    por_grupo, por_rol = _nivel_lookup(table)
 
-    context = [c for c in PLAYER_CONTEXT_COLS if c in table.columns]
-    out = table[["player", "team", "primary_position", "position_group", "minutes", *context]].copy()
+    # el nivel del puesto se mide en el equipo destino, dentro de SU competición
+    key_prefix: tuple = ()
+    if "competition" in table.columns:
+        comp_destino = table.loc[table["team"] == team, "competition"]
+        key_prefix = (comp_destino.iloc[0],) if not comp_destino.empty else (None,)
+
+    cols = ["player", "team", "primary_position", "position_group", "minutes"]
+    for opcional in ("nickname", "role", "competition"):
+        if opcional in table.columns:
+            cols.append(opcional)
+    cols += [c for c in PLAYER_CONTEXT_COLS if c in table.columns]
+    out = table[cols].copy()
     out = out.join(desglose[[*STYLE_AXES, "estilo"]])
+
     nivel_jugador = pd.Series(0.0, index=table.index)
     for g, sub in table.groupby("position_group"):
         nivel_jugador.loc[sub.index] = _key_pct_mean(sub, g)
     out["nivel_jugador"] = nivel_jugador
     out["mejora_puesto"] = [
-        row["nivel_jugador"] - float(niveles.get((team, row["position_group"]), 50.0))
+        row["nivel_jugador"]
+        - _nivel_puesto(por_grupo, por_rol, key_prefix, team, row.get("role"), row["position_group"])
         for _, row in out.iterrows()
     ]
 
@@ -226,5 +309,5 @@ def players_for_team(
     if group:
         out = out[out["position_group"] == group]
     out = out.copy()
-    out["encaje"] = _combine(out["estilo"], out["mejora_puesto"])
+    out["encaje"] = _combine(out["estilo"], out["mejora_puesto"], w_estilo)
     return out.sort_values("encaje", ascending=False).reset_index(drop=True)

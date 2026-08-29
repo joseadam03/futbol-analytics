@@ -51,6 +51,27 @@ def position_group(position: str | float) -> str | float:
     return "FW"
 
 
+def position_role(position: str | float) -> str | float:
+    """Rol fino a partir de la posición de StatsBomb (un lateral no es un central)."""
+    if not isinstance(position, str):
+        return np.nan
+    if position == "Goalkeeper":
+        return "Portero"
+    if "Center Back" in position:
+        return "Central"
+    if "Back" in position:  # laterales y carrileros
+        return "Lateral"
+    if "Defensive Midfield" in position:
+        return "Pivote"
+    if "Attacking Midfield" in position:
+        return "Mediapunta"
+    if "Center Midfield" in position:
+        return "Interior"
+    if "Midfield" in position or "Wing" in position:  # bandas
+        return "Extremo"
+    return "Delantero"
+
+
 def _xy(loc: pd.Series) -> tuple[pd.Series, pd.Series]:
     x = loc.str[0].astype(float)
     y = loc.str[1].astype(float)
@@ -160,6 +181,7 @@ def player_metrics(
     out = out.merge(primary_pos.rename("primary_position"), left_on="player", right_index=True, how="left")
     out["primary_position"] = out["primary_position"].fillna(out["lineup_position"])
     out["position_group"] = out["primary_position"].map(position_group)
+    out["role"] = out["primary_position"].map(position_role)
 
     metric_cols = [c for c in out.columns if c in set(COUNT_METRICS) | {"passes_att", "dribbles_att"}]
     out[metric_cols] = out[metric_cols].fillna(0.0)

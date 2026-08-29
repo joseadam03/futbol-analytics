@@ -7,7 +7,7 @@ import io
 import pandas as pd
 import streamlit as st
 
-from futbol_analytics import metrics, photos, tsdb, viz
+from futbol_analytics import metrics, photos, report, tsdb, viz, xg
 from futbol_analytics.providers import get_provider, list_providers
 
 SCATTER_COLORS = {
@@ -59,6 +59,39 @@ def photo_of(display_name: str) -> str | None:
 def buscar_fichas(query: str) -> list[dict]:
     """Fichas externas de TheSportsDB; propaga ServiceUnavailable (no se cachea)."""
     return tsdb.search_players(query)
+
+
+@st.cache_data(show_spinner=False)
+def entrena_xg(provider_key: str, competition_id: int, season_id: int):
+    """Entrena el modelo de xG propio sobre la competición (resumen, tiros)."""
+    events = load_events(provider_key, competition_id, season_id)
+    return xg.train_xg(events)
+
+
+@st.cache_data(show_spinner=False)
+def informe_pdf(
+    provider_key: str,
+    competition_id: int,
+    season_id: int,
+    min_minutes: float,
+    player: str,
+    comp_label: str,
+) -> bytes:
+    """Informe-CV en PDF del jugador (siempre en tema claro, para imprimir)."""
+    table = build_table(provider_key, competition_id, season_id, min_minutes)
+    events = load_events(provider_key, competition_id, season_id)
+    try:
+        return report.player_report_pdf(table, events, player, comp_label)
+    finally:
+        viz.use_theme(theme())  # el informe fuerza tema claro; restaurar el de la app
+
+
+def cached_competitions(provider_key: str) -> pd.DataFrame:
+    """Competiciones cuyos eventos ya están en la caché local (carga instantánea)."""
+    comps = load_competitions(provider_key)
+    provider = get_provider(provider_key)
+    mask = [provider.has_cached(int(row.competition_id), int(row.season_id)) for row in comps.itertuples()]
+    return comps[pd.Series(mask, index=comps.index)]
 
 
 def _stop_with_data_error(exc: Exception) -> None:
@@ -137,7 +170,7 @@ def sidebar_context() -> dict:
     player = st.sidebar.selectbox(
         "Jugador",
         sorted(table["player"], key=lambda p: display_of[p]),
-        format_func=display_of.get,
+        format_func=lambda p: display_of.get(p, p),
         key="player_sel",
     )
     st.sidebar.caption(

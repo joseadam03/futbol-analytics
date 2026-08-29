@@ -30,6 +30,14 @@ class Provider(ABC):
         """Si el proveedor puede usarse ahora mismo (credenciales, etc.)."""
         return True
 
+    def has_cached(self, competition_id: int, season_id: int) -> bool:
+        """Si los eventos de esa competición ya están en la caché local.
+
+        Sirve para ofrecer pools multi-competición sin disparar descargas
+        largas por sorpresa; por defecto, no hay caché.
+        """
+        return False
+
     @abstractmethod
     def competitions(self) -> pd.DataFrame:
         """Competiciones/temporadas disponibles (competition_id, season_id, nombres)."""

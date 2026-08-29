@@ -5,15 +5,23 @@ on:
     branches: [main]
   pull_request:
 
+# Permiso mínimo por defecto; cada job amplía solo lo que necesita.
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
 jobs:
   lint-test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -26,7 +34,37 @@ jobs:
       - name: Formato
         run: ruff format --check .
       - name: Tests con cobertura
-        run: pytest -q --cov=futbol_analytics --cov-report=term-missing --cov-fail-under=65
+        env:
+          MPLBACKEND: Agg
+        run: pytest -q --cov=futbol_analytics --cov-report=term-missing --cov-fail-under=80
+
+  types:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Instalar dependencias
+        run: |
+          pip install -r requirements-dev.txt
+          pip install --no-deps -e .
+      - name: Comprobación de tipos
+        run: mypy src scripts app_common.py streamlit_app.py
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Auditar dependencias fijadas
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt --progress-spinner off
 
   docker:
     runs-on: ubuntu-latest
@@ -37,10 +75,39 @@ jobs:
       - name: Smoke test (healthcheck de Streamlit)
         run: |
           docker run -d --rm -p 8501:8501 --name fa futbol-analytics
-          for i in $(seq 1 30); do
+          for i in $(seq 1 40); do
             if curl -fsS http://localhost:8501/_stcore/health > /dev/null 2>&1; then
               echo "la app responde"; docker stop fa; exit 0
             fi
             sleep 1
           done
           echo "la app no llegó a responder"; docker logs fa; exit 1
+      - name: Escaneo de vulnerabilidades de la imagen (informativo)
+        continue-on-error: true
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$HOME/.cache/trivy:/root/.cache/trivy" \
+            aquasec/trivy:0.74.0 image \
+              --severity HIGH,CRITICAL --ignore-unfixed --exit-code 0 \
+              --scanners vuln futbol-analytics
+
+  publish:
+    # Solo en main y con todo en verde: la imagen publicada es la que pasó CI.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [lint-test, types, security, docker]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Autenticarse en GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Construir y publicar
+        run: |
+          IMAGE_LC=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')
+          docker build -t "$IMAGE_LC:latest" -t "$IMAGE_LC:${GITHUB_SHA::7}" .
+          docker push "$IMAGE_LC:latest"
+          docker push "$IMAGE_LC:${GITHUB_SHA::7}"
+          echo "Publicada $IMAGE_LC:${GITHUB_SHA::7}" >> "$GITHUB_STEP_SUMMARY"

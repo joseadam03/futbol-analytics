@@ -16,7 +16,9 @@ import logging
 import unicodedata
 from pathlib import Path
 
-from futbol_analytics import metrics, similarity, viz
+from dotenv import load_dotenv
+
+from futbol_analytics import metrics, report, similarity, viz
 from futbol_analytics.providers import get_provider
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,6 +41,7 @@ def find_player(names: list[str], query: str) -> str:
 
 
 def main() -> None:
+    load_dotenv()  # credenciales opcionales desde .env
     # el progreso de descarga (eventos/alineaciones) se emite por logging
     logging.basicConfig(level=logging.INFO, format="  %(message)s")
     parser = argparse.ArgumentParser(description=__doc__)
@@ -80,6 +83,9 @@ def main() -> None:
     sims = similarity.similar_players(table, player)
     sims.to_csv(out_dir / "similares.csv", index=False)
     table.to_csv(ROOT / "output" / "metricas_competicion.csv", index=False)
+
+    (out_dir / "informe.pdf").write_bytes(report.player_report_pdf(table, events, player, comp_label))
+    print("Informe-CV de una página: informe.pdf")
 
     resumen = [
         ("Minutos", f"{prow['minutes']:.0f}"),

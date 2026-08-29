@@ -36,11 +36,24 @@ st.markdown(
 | **Estilo del equipo** | Tres ejes z-score entre equipos: posesión, presión (PPDA invertido + presiones/partido) y verticalidad (cuota de pases progresivos en juego) |
 | **Rasgos del jugador** | Métricas per-90 estandarizadas (z-score) dentro de su grupo posicional |
 | **Componente de estilo** | `z_equipo · afinidad · z_jugador`, con la matriz de afinidad documentada en `fit.py` (un equipo presionante demanda presiones y recuperaciones; uno posesivo, fiabilidad y progresión; uno vertical, conducción y regate) |
-| **Mejora del puesto** | Percentil medio del jugador en las métricas clave de su grupo (las del radar) menos el nivel medio del mismo grupo en el equipo de destino |
+| **Mejora del puesto** | Percentil medio del jugador en las métricas clave de su grupo (las del radar) menos el nivel del puesto en el destino: media de sus jugadores del mismo **rol fino** (lateral ≠ central) **ponderada por minutos**, con caída al grupo posicional si el equipo no tiene ese rol |
 | **Encaje (0-100)** | Percentil de la media de ambos componentes estandarizados dentro del conjunto comparado |
 
 El encaje ordena candidatos *dentro de la competición cargada*; no considera
 edad, precio, rol táctico fino ni contexto de club.
+
+#### Modelo de xG propio
+
+| Componente | Definición |
+|---|---|
+| **Rasgos** | Distancia a portería, ángulo que subtiende la portería desde el punto de tiro y remate de cabeza |
+| **Modelo** | Regresión logística entrenada sobre los tiros de la competición cargada (sin penaltis ni tandas) |
+| **Validación** | Predicciones *out-of-fold* con validación cruzada estratificada: cada tiro se evalúa con un modelo que no lo vio |
+| **Brier score** | Error cuadrático medio de la probabilidad; se compara con el xG del proveedor y con predecir a todos la tasa media de gol |
+| **Calibración** | Curva de fiabilidad por tramos de xG: predicho frente a frecuencia real de gol |
+
+El objetivo no es batir al xG de StatsBomb —que ve presión, portero y contexto—,
+sino tener un modelo transparente y comprobar si está bien calibrado.
 
 #### Limitaciones conocidas
 

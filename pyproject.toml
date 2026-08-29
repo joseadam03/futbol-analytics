@@ -13,10 +13,12 @@ dependencies = [
     "streamlit>=1.46",
     "altair>=5",
     "requests>=2.31",
+    "scikit-learn>=1.5",
+    "python-dotenv>=1.0",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-cov", "ruff", "pre-commit"]
+dev = ["pytest", "pytest-cov", "ruff", "pre-commit", "mypy"]
 
 [tool.ruff]
 line-length = 110
@@ -26,6 +28,13 @@ target-version = "py311"
 # Conjunto explícito: una subida de ruff no cambia las reglas en silencio.
 # E4/E7/E9/F = los defaults clásicos; I = orden de imports; UP = modernizaciones.
 select = ["E4", "E7", "E9", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+# pandas/mplsoccer/statsbombpy no publican stubs completos: el objetivo es
+# cazar errores propios, no pelear con tipos de terceros.
+ignore_missing_imports = true
+check_untyped_defs = true
 
 [build-system]
 requires = ["setuptools>=68"]
