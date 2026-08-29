@@ -18,22 +18,28 @@ def _teams(provider_key: str, competition_id: int, season_id: int):
     return team_metrics(events)
 
 
-teams = _teams(
-    ctx["provider_key"], int(ctx["comp"]["competition_id"]), int(ctx["comp"]["season_id"])
-)
+teams = _teams(ctx["provider_key"], int(ctx["comp"]["competition_id"]), int(ctx["comp"]["season_id"]))
 
 st.markdown("#### Ranking por diferencia de npxG por partido")
 view = teams.rename(
     columns={
-        "team": "Equipo", "matches": "PJ", "possession": "Posesión %",
-        "npxg_for_pm": "npxG a favor", "npxg_against_pm": "npxG en contra",
-        "npxg_diff_pm": "npxG dif.", "goals_for": "GF", "goals_against": "GC",
-        "ppda": "PPDA", "pressures_pm": "Presiones/partido", "shots_pm": "Tiros/partido",
+        "team": "Equipo",
+        "matches": "PJ",
+        "possession": "Posesión %",
+        "npxg_for_pm": "npxG a favor",
+        "npxg_against_pm": "npxG en contra",
+        "npxg_diff_pm": "npxG dif.",
+        "goals_for": "GF",
+        "goals_against": "GC",
+        "ppda": "PPDA",
+        "pressures_pm": "Presiones/partido",
+        "shots_pm": "Tiros/partido",
     }
 )
 st.dataframe(
     view.round(2),
-    use_container_width=True, hide_index=True,
+    use_container_width=True,
+    hide_index=True,
     column_config={
         "Posesión %": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f"),
         "npxG a favor": st.column_config.NumberColumn(format="%.2f"),

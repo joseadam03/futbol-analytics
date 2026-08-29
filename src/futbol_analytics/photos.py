@@ -1,19 +1,17 @@
-"""Fotos de jugadores vía TheSportsDB (API gratuita, uso no comercial).
+"""Fotos de jugadores vía TheSportsDB, con caché en disco.
 
 Busca por el apodo del jugador (p. ej. "Lionel Messi") y cachea el
-resultado en disco. Si no hay foto o falla la red, devuelve None y la
-interfaz lo maneja sin romper nada.
+resultado. Si no hay foto o el servicio no responde (red, Cloudflare),
+devuelve None y la interfaz lo maneja sin romper nada.
 """
 
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
-import requests
+from . import paths, tsdb
 
-API = "https://www.thesportsdb.com/api/v1/json/3/searchplayers.php"
-CACHE_FILE = Path(__file__).resolve().parents[2] / "data" / "cache" / "photos.json"
+CACHE_FILE = paths.CACHE_DIR / "photos.json"
 
 
 def _load_cache() -> dict:
@@ -26,8 +24,11 @@ def _load_cache() -> dict:
 
 
 def _save_cache(cache: dict) -> None:
-    CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    CACHE_FILE.write_text(json.dumps(cache, ensure_ascii=False, indent=0), encoding="utf-8")
+    try:
+        CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        CACHE_FILE.write_text(json.dumps(cache, ensure_ascii=False, indent=0), encoding="utf-8")
+    except OSError:
+        pass  # sin caché en disco la app sigue funcionando
 
 
 def photo_url(name: str) -> str | None:
@@ -36,20 +37,12 @@ def photo_url(name: str) -> str | None:
     if name in cache:
         return cache[name]
 
-    url = None
     try:
-        resp = requests.get(API, params={"p": name}, timeout=6)
-        players = (resp.json() or {}).get("player") or []
-        for p in players:
-            if p.get("strSport") != "Soccer":
-                continue
-            candidate = p.get("strCutout") or p.get("strThumb")
-            if candidate:
-                url = candidate
-                break
-    except (requests.RequestException, ValueError):
-        return None  # fallo transitorio: no cachear
+        fichas = tsdb.search_players(name)
+    except tsdb.ServiceUnavailable:
+        return None  # fallo transitorio: no cachear, se reintentará
 
-    cache[name] = url
+    url = next((f["foto"] for f in fichas if f["foto"]), None)
+    cache[name] = url  # una respuesta válida sin foto sí se cachea
     _save_cache(cache)
     return url

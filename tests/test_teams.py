@@ -8,9 +8,15 @@ from futbol_analytics.teams import team_metrics
 
 def _event(team, type_, x=60.0, **kw):
     base = {
-        "match_id": 1, "period": 1, "team": team, "type": type_,
-        "location": [x, 40.0], "shot_type": None, "shot_outcome": None,
-        "shot_statsbomb_xg": None, "duel_type": None,
+        "match_id": 1,
+        "period": 1,
+        "team": team,
+        "type": type_,
+        "location": [x, 40.0],
+        "shot_type": None,
+        "shot_outcome": None,
+        "shot_statsbomb_xg": None,
+        "duel_type": None,
     }
     base.update(kw)
     return base
