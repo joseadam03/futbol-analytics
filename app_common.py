@@ -57,6 +57,21 @@ def photo_of(display_name: str) -> str | None:
     return photos.photo_url(display_name)
 
 
+def _stop_with_data_error(exc: Exception) -> None:
+    """Aviso amable en lugar del traceback cuando falla la descarga de datos."""
+    st.error(
+        "**No se pudieron cargar los datos.** Suele ser un problema transitorio "
+        "de red o del proveedor (los open data de StatsBomb se descargan de GitHub; "
+        "las fotos, de TheSportsDB). Comprueba la conexión y reintenta."
+    )
+    with st.expander("Detalle técnico"):
+        st.code(f"{type(exc).__name__}: {exc}")
+    if st.button("Reintentar", key="retry_data"):
+        st.cache_data.clear()
+        st.rerun()
+    st.stop()
+
+
 def sidebar_context() -> dict:
     """Dibuja la barra lateral global y devuelve la selección actual."""
     viz.use_theme(theme())
@@ -78,7 +93,10 @@ def sidebar_context() -> dict:
         )
         st.stop()
 
-    comps = load_competitions(provider_key)
+    try:
+        comps = load_competitions(provider_key)
+    except Exception as exc:  # red o proveedor caídos
+        _stop_with_data_error(exc)
     labels = comps["label"].tolist()
     default_ix = labels.index("FIFA World Cup · 2022") if "FIFA World Cup · 2022" in labels else 0
     comp_label = st.sidebar.selectbox("Competición", labels, index=default_ix, key="comp_sel")
@@ -87,10 +105,20 @@ def sidebar_context() -> dict:
     min_minutes = st.sidebar.slider("Minutos mínimos (percentiles)", 0, 900, 180, 30, key="min_sel")
 
     with st.spinner("Cargando datos... (la primera descarga de una competición tarda varios minutos)"):
-        table = build_table(
-            provider_key, int(comp["competition_id"]), int(comp["season_id"]), min_minutes
+        try:
+            table = build_table(
+                provider_key, int(comp["competition_id"]), int(comp["season_id"]), min_minutes
+            )
+            events = load_events(provider_key, int(comp["competition_id"]), int(comp["season_id"]))
+        except Exception as exc:  # red o proveedor caídos a mitad de descarga
+            _stop_with_data_error(exc)
+
+    if table.empty:
+        st.warning(
+            f"Ningún jugador alcanza {min_minutes:.0f} minutos en esta competición. "
+            "Baja el umbral de minutos en la barra lateral."
         )
-        events = load_events(provider_key, int(comp["competition_id"]), int(comp["season_id"]))
+        st.stop()
 
     if "nickname" not in table.columns:
         table["nickname"] = table["player"]
