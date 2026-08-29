@@ -18,10 +18,24 @@ GOAL_X, GOAL_Y = 120.0, 40.0
 BOX_X, BOX_Y_MIN, BOX_Y_MAX = 102.0, 18.0, 62.0
 
 COUNT_METRICS = [
-    "npg", "npxg", "shots", "assists", "xa", "key_passes",
-    "passes_cmp", "prog_passes", "prog_carries", "dribbles_cmp",
-    "touches_box", "pressures", "tackles", "interceptions",
-    "padj_tack_int", "recoveries", "blocks", "clearances",
+    "npg",
+    "npxg",
+    "shots",
+    "assists",
+    "xa",
+    "key_passes",
+    "passes_cmp",
+    "prog_passes",
+    "prog_carries",
+    "dribbles_cmp",
+    "touches_box",
+    "pressures",
+    "tackles",
+    "interceptions",
+    "padj_tack_int",
+    "recoveries",
+    "blocks",
+    "clearances",
 ]
 
 
@@ -92,9 +106,7 @@ def player_metrics(
     shots = ev[is_shot]
     if "shot_key_pass_id" in shots.columns:
         xa_map = (
-            shots.dropna(subset=["shot_key_pass_id"])
-            .groupby("shot_key_pass_id")["shot_statsbomb_xg"]
-            .sum()
+            shots.dropna(subset=["shot_key_pass_id"]).groupby("shot_key_pass_id")["shot_statsbomb_xg"].sum()
         )
         ev["xa"] = ev["id"].map(xa_map).fillna(0.0)
     else:
@@ -133,24 +145,16 @@ def player_metrics(
     flags["pressures"] = ev["type"] == "Pressure"
     flags["tackles"] = col("duel_type") == "Tackle"
     flags["interceptions"] = ev["type"] == "Interception"
-    flags["recoveries"] = (ev["type"] == "Ball Recovery") & col(
-        "ball_recovery_recovery_failure"
-    ).ne(True)
+    flags["recoveries"] = (ev["type"] == "Ball Recovery") & col("ball_recovery_recovery_failure").ne(True)
     flags["blocks"] = ev["type"] == "Block"
     flags["clearances"] = ev["type"] == "Clearance"
 
     ev = pd.concat([ev, flags.astype(float)], axis=1)
     ev["npxg"] = np.where(is_shot & non_penalty, col("shot_statsbomb_xg").fillna(0.0), 0.0)
 
-    sums = ev.groupby("player")[
-        list(flags.columns) + ["npxg", "xa"]
-    ].sum()
+    sums = ev.groupby("player")[list(flags.columns) + ["npxg", "xa"]].sum()
 
-    primary_pos = (
-        ev.dropna(subset=["position"])
-        .groupby("player")["position"]
-        .agg(lambda s: s.mode().iloc[0])
-    )
+    primary_pos = ev.dropna(subset=["position"]).groupby("player")["position"].agg(lambda s: s.mode().iloc[0])
 
     out = minutes.merge(sums, left_on="player", right_index=True, how="left")
     out = out.merge(primary_pos.rename("primary_position"), left_on="player", right_index=True, how="left")
@@ -167,9 +171,7 @@ def player_metrics(
     factor = (0.5 / (1 - out["team"].map(poss))).clip(upper=3.0)
     out["padj_tack_int"] = (out["tackles"] + out["interceptions"]) * factor
 
-    out["pass_pct"] = np.where(
-        out["passes_att"] > 0, 100 * out["passes_cmp"] / out["passes_att"], np.nan
-    )
+    out["pass_pct"] = np.where(out["passes_att"] > 0, 100 * out["passes_cmp"] / out["passes_att"], np.nan)
     out["npxg_per_shot"] = np.where(out["shots"] > 0, out["npxg"] / out["shots"], np.nan)
 
     for m in COUNT_METRICS:

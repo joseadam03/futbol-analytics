@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  test:
+  lint-test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -17,11 +17,30 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - name: Instalar dependencias
+      - name: Instalar dependencias (fijadas por uv.lock)
         run: |
-          pip install -e .
-          pip install pytest ruff
+          pip install -r requirements-dev.txt
+          pip install --no-deps -e .
       - name: Lint
         run: ruff check src scripts tests streamlit_app.py app_common.py app_pages
-      - name: Tests
-        run: pytest -q
+      - name: Formato
+        run: ruff format --check .
+      - name: Tests con cobertura
+        run: pytest -q --cov=futbol_analytics --cov-report=term-missing --cov-fail-under=65
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Construir la imagen
+        run: docker build -t futbol-analytics .
+      - name: Smoke test (healthcheck de Streamlit)
+        run: |
+          docker run -d --rm -p 8501:8501 --name fa futbol-analytics
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8501/_stcore/health > /dev/null 2>&1; then
+              echo "la app responde"; docker stop fa; exit 0
+            fi
+            sleep 1
+          done
+          echo "la app no llegó a responder"; docker logs fa; exit 1

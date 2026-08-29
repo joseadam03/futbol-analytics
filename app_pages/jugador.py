@@ -67,8 +67,11 @@ with tab_similares:
     st.dataframe(
         sims_view.rename(
             columns={
-                "player": "Jugador", "team": "Equipo", "primary_position": "Posición",
-                "minutes": "Minutos", "similarity": "Similitud",
+                "player": "Jugador",
+                "team": "Equipo",
+                "primary_position": "Posición",
+                "minutes": "Minutos",
+                "similarity": "Similitud",
             }
         ),
         use_container_width=True,

@@ -7,7 +7,7 @@ import io
 import pandas as pd
 import streamlit as st
 
-from futbol_analytics import metrics, photos, viz
+from futbol_analytics import metrics, photos, tsdb, viz
 from futbol_analytics.providers import get_provider, list_providers
 
 SCATTER_COLORS = {
@@ -42,9 +42,7 @@ def load_minutes(provider_key: str, competition_id: int, season_id: int) -> pd.D
 
 
 @st.cache_data(show_spinner=False)
-def build_table(
-    provider_key: str, competition_id: int, season_id: int, min_minutes: float
-) -> pd.DataFrame:
+def build_table(provider_key: str, competition_id: int, season_id: int, min_minutes: float) -> pd.DataFrame:
     events = load_events(provider_key, competition_id, season_id)
     minutes = load_minutes(provider_key, competition_id, season_id)
     table = metrics.player_metrics(events, minutes, min_minutes=min_minutes)
@@ -55,6 +53,12 @@ def build_table(
 @st.cache_data(show_spinner=False)
 def photo_of(display_name: str) -> str | None:
     return photos.photo_url(display_name)
+
+
+@st.cache_data(show_spinner=False, ttl=3600)
+def buscar_fichas(query: str) -> list[dict]:
+    """Fichas externas de TheSportsDB; propaga ServiceUnavailable (no se cachea)."""
+    return tsdb.search_players(query)
 
 
 def _stop_with_data_error(exc: Exception) -> None:
@@ -125,6 +129,11 @@ def sidebar_context() -> dict:
     table["nickname"] = table["nickname"].fillna(table["player"])
     display_of = dict(zip(table["player"], table["nickname"]))
 
+    # salto desde el Buscador: fijar la selección antes de instanciar el widget
+    jump = st.session_state.pop("jump_to_player", None)
+    if jump is not None and jump in set(table["player"]):
+        st.session_state["player_sel"] = jump
+
     player = st.sidebar.selectbox(
         "Jugador",
         sorted(table["player"], key=lambda p: display_of[p]),
@@ -132,8 +141,7 @@ def sidebar_context() -> dict:
         key="player_sel",
     )
     st.sidebar.caption(
-        f"{len(table)} jugadores con ≥{min_minutes:.0f} min · "
-        "Datos: StatsBomb open data (uso no comercial)"
+        f"{len(table)} jugadores con ≥{min_minutes:.0f} min · Datos: StatsBomb open data (uso no comercial)"
     )
 
     prow = table[table["player"] == player].iloc[0]
@@ -172,6 +180,4 @@ def fig_and_download(fig, filename: str) -> None:
     st.pyplot(fig, use_container_width=True)
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=200, facecolor=fig.get_facecolor(), bbox_inches="tight")
-    st.download_button(
-        "⬇ PNG", buf.getvalue(), file_name=filename, mime="image/png", key=f"dl_{filename}"
-    )
+    st.download_button("⬇ PNG", buf.getvalue(), file_name=filename, mime="image/png", key=f"dl_{filename}")

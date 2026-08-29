@@ -2,18 +2,19 @@
 
 from __future__ import annotations
 
+import logging
 import warnings
-from pathlib import Path
 
 import pandas as pd
 from statsbombpy import sb
 
+from ..paths import CACHE_DIR
 from .base import Provider
 
 # statsbombpy avisa en cada llamada de que se usan open data sin credenciales
 warnings.filterwarnings("ignore", module="statsbombpy")
 
-CACHE_DIR = Path(__file__).resolve().parents[3] / "data" / "cache"
+log = logging.getLogger(__name__)
 
 
 def _clock_to_min(clock: str) -> float:
@@ -41,7 +42,7 @@ class StatsBombProvider(Provider):
             df = sb.events(match_id=match_id)
             df["match_id"] = match_id
             frames.append(df)
-            print(f"  eventos {i}/{len(match_ids)} (partido {match_id})", flush=True)
+            log.info("eventos %d/%d (partido %s)", i, len(match_ids), match_id)
 
         all_events = pd.concat(frames, ignore_index=True)
         cache.parent.mkdir(parents=True, exist_ok=True)
@@ -89,16 +90,13 @@ class StatsBombProvider(Provider):
                             "lineup_position": positions[0]["position"],
                         }
                     )
-            print(f"  alineaciones {i}/{len(match_ids)}", flush=True)
+            log.info("alineaciones %d/%d", i, len(match_ids))
 
         per_match = pd.DataFrame(rows)
-        out = (
-            per_match.groupby(["player", "team"], as_index=False)
-            .agg(
-                nickname=("nickname", "first"),
-                minutes=("minutes", "sum"),
-                lineup_position=("lineup_position", "first"),
-            )
+        out = per_match.groupby(["player", "team"], as_index=False).agg(
+            nickname=("nickname", "first"),
+            minutes=("minutes", "sum"),
+            lineup_position=("lineup_position", "first"),
         )
         cache.parent.mkdir(parents=True, exist_ok=True)
         out.to_pickle(cache)

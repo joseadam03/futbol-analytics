@@ -1,34 +1,17 @@
-"""Fotos de jugadores vía TheSportsDB (API gratuita, uso no comercial).
+"""Fotos de jugadores vía TheSportsDB, con caché en disco.
 
 Busca por el apodo del jugador (p. ej. "Lionel Messi") y cachea el
-resultado en disco. Si no hay foto, falla la red o Cloudflare intercepta
-la petición (rate limit / challenge devuelven HTML en vez de JSON),
+resultado. Si no hay foto o el servicio no responde (red, Cloudflare),
 devuelve None y la interfaz lo maneja sin romper nada.
 """
 
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
-import requests
+from . import paths, tsdb
 
-API = "https://www.thesportsdb.com/api/v1/json/3/searchplayers.php"
-CACHE_FILE = Path(__file__).resolve().parents[2] / "data" / "cache" / "photos.json"
-
-# TheSportsDB sirve detrás de Cloudflare, que suele retar al User-Agent
-# por defecto de python-requests; nos identificamos como aplicación.
-HEADERS = {
-    "User-Agent": "futbol-analytics/0.1 (+https://github.com/joseadam03/futbol-analytics)",
-    "Accept": "application/json",
-}
-TIMEOUT = 6
-
-# Circuito de corte: si la API no responde (caída, rate limit, challenge),
-# dejamos de insistir el resto del proceso. Sin esto, una tabla de 10
-# similares encadena 10 timeouts de 6 s y la interfaz parece colgada.
-_MAX_CONSECUTIVE_FAILURES = 2
-_consecutive_failures = 0
+CACHE_FILE = paths.CACHE_DIR / "photos.json"
 
 
 def _load_cache() -> dict:
@@ -48,55 +31,18 @@ def _save_cache(cache: dict) -> None:
         pass  # sin caché en disco la app sigue funcionando
 
 
-def _fetch(name: str) -> tuple[str | None, bool]:
-    """Devuelve (url, respuesta_valida).
-
-    respuesta_valida=False marca un fallo transitorio (red, bloqueo de
-    Cloudflare, cuerpo inesperado): no se cachea, para reintentarlo en
-    otra ejecución. Una respuesta válida sin foto sí se cachea como None.
-    """
-    try:
-        resp = requests.get(API, params={"p": name}, headers=HEADERS, timeout=TIMEOUT)
-    except requests.RequestException:
-        return None, False
-    # Cloudflare responde a los bloqueos con 403/429/503 y una página HTML.
-    if resp.status_code != 200:
-        return None, False
-    try:
-        payload = resp.json()
-    except ValueError:
-        return None, False
-    if not isinstance(payload, dict):
-        return None, False
-    players = payload.get("player") or []
-    if not isinstance(players, list):
-        return None, False
-    for p in players:
-        if not isinstance(p, dict) or p.get("strSport") != "Soccer":
-            continue
-        candidate = p.get("strCutout") or p.get("strThumb")
-        if candidate:
-            return candidate, True
-    return None, True
-
-
 def photo_url(name: str) -> str | None:
     """URL de la foto (recorte transparente si existe) o None."""
-    global _consecutive_failures
-
     cache = _load_cache()
     if name in cache:
         return cache[name]
 
-    if _consecutive_failures >= _MAX_CONSECUTIVE_FAILURES:
-        return None
+    try:
+        fichas = tsdb.search_players(name)
+    except tsdb.ServiceUnavailable:
+        return None  # fallo transitorio: no cachear, se reintentará
 
-    url, valid = _fetch(name)
-    if not valid:
-        _consecutive_failures += 1
-        return None
-
-    _consecutive_failures = 0
-    cache[name] = url
+    url = next((f["foto"] for f in fichas if f["foto"]), None)
+    cache[name] = url  # una respuesta válida sin foto sí se cachea
     _save_cache(cache)
     return url
