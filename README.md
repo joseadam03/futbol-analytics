@@ -67,6 +67,23 @@ Multipágina, con navegación propia:
 - Todos los gráficos con botón de **descarga en PNG** para presentaciones.
 - Fotos de jugadores vía TheSportsDB (gratuita; puede faltar alguna).
 
+## Desplegar
+
+**Streamlit Community Cloud** (gratis): en [share.streamlit.io](https://share.streamlit.io),
+conecta tu GitHub, elige este repositorio, la rama `main` y el fichero principal
+`streamlit_app.py`. `requirements.txt` lleva `-e .` como primera línea (se
+regenera así en `make lock`) para que Cloud instale también el paquete propio,
+ya que solo ejecuta `pip install -r requirements.txt` — sin eso, la app
+reventaría al arrancar por no encontrar `futbol_analytics`. En *Advanced
+settings* puedes fijar la versión de Python (3.11 o 3.12) y, si vas a activar
+Wyscout, añadir `WYSCOUT_CLIENT_ID` / `WYSCOUT_CLIENT_SECRET` en *Secrets*.
+
+El primer arranque descarga y cachea la competición por defecto (varios
+minutos); como el disco de Cloud no es persistente entre reinicios del
+contenedor, cada redeploy repite esa espera. Si prefieres una demo instantánea
+sin depender de la red, añade `FUTBOL_ANALYTICS_FAKE = "1"` en *Secrets*: la
+app arranca al instante con la liga sintética.
+
 También en Docker:
 
 ```bash

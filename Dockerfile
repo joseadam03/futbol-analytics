@@ -8,8 +8,13 @@ ENV PIP_NO_CACHE_DIR=1 \
 WORKDIR /build
 
 # Dependencias fijadas por uv.lock (reproducible), luego el paquete.
+# requirements.txt lleva "-e ." como primera línea para Streamlit Community
+# Cloud (que solo ejecuta pip install -r requirements.txt); aquí se descarta
+# porque el código fuente aún no está copiado y el paquete se instala aparte
+# más abajo, ya con src/ disponible.
 COPY requirements.txt ./
-RUN pip install --prefix=/install -r requirements.txt
+RUN grep -v '^-e ' requirements.txt > requirements.docker.txt \
+    && pip install --prefix=/install -r requirements.docker.txt
 
 COPY pyproject.toml README.md ./
 COPY src ./src

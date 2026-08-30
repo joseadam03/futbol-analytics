@@ -47,3 +47,8 @@ lock:  ## re-resuelve dependencias (uv.lock + requirements*.txt)
 	uv lock
 	uv export --no-hashes --no-emit-project -o requirements.txt
 	uv export --no-hashes --no-emit-project --extra dev -o requirements-dev.txt
+	# uv export excluye el propio paquete (--no-emit-project); Streamlit Community
+	# Cloud solo ejecuta "pip install -r requirements.txt" (sin nuestro
+	# "pip install -e ." aparte), así que hace falta esta línea para que
+	# futbol_analytics quede instalado y la app arranque en el despliegue.
+	printf -- '-e .\n' | cat - requirements.txt > requirements.txt.tmp && mv requirements.txt.tmp requirements.txt
