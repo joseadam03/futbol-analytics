@@ -132,6 +132,23 @@ class WyscoutProvider(Provider):
         data = self._get(f"/seasons/{season_id}/matches")
         return [m["matchId"] for m in data.get("matches", [])]
 
+    def matches(self, competition_id: int, season_id: int) -> pd.DataFrame:
+        if not self.available():
+            raise NotImplementedError(_MSG)
+        data = self._get(f"/seasons/{season_id}/matches")
+        return pd.DataFrame(
+            [
+                {
+                    "match_id": m.get("matchId"),
+                    "match_date": m.get("date"),
+                    "match_week": m.get("gameweek"),
+                    "home_team": (m.get("home") or {}).get("name"),
+                    "away_team": (m.get("away") or {}).get("name"),
+                }
+                for m in data.get("matches", [])
+            ]
+        )
+
     def events(self, competition_id: int, season_id: int, refresh: bool = False) -> pd.DataFrame:
         if not self.available():
             raise NotImplementedError(_MSG)

@@ -23,6 +23,8 @@ PAGINAS = [
     "equipos",
     "informe_equipo",
     "competicion",
+    "secuencias",
+    "evolucion",
     "modelo_xg",
     "metodologia",
 ]

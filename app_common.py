@@ -7,7 +7,7 @@ import io
 import pandas as pd
 import streamlit as st
 
-from futbol_analytics import metrics, photos, report, teams, tsdb, viz, xg
+from futbol_analytics import metrics, photos, report, sequences, series, teams, tsdb, viz, xg
 from futbol_analytics.providers import get_provider, list_providers
 
 SCATTER_COLORS = {
@@ -88,6 +88,36 @@ def team_style_table(provider_key: str, competition_id: int, season_id: int) -> 
 
 
 @st.cache_data(show_spinner=False)
+def load_matches(provider_key: str, competition_id: int, season_id: int) -> pd.DataFrame:
+    """Calendario de la competición (fechas y jornadas) para ordenar las series."""
+    try:
+        return get_provider(provider_key).matches(competition_id, season_id)
+    except Exception:  # un proveedor sin calendario no debe tumbar la página
+        return pd.DataFrame()
+
+
+@st.cache_data(show_spinner=False)
+def sequence_table(provider_key: str, competition_id: int, season_id: int) -> pd.DataFrame:
+    """Posesiones que acaban en tiro, con su origen y su forma."""
+    events = load_events(provider_key, competition_id, season_id)
+    return sequences.shot_sequences(events)
+
+
+@st.cache_data(show_spinner=False)
+def team_series_table(provider_key: str, competition_id: int, season_id: int) -> pd.DataFrame:
+    """Métricas por equipo y partido, en orden temporal."""
+    events = load_events(provider_key, competition_id, season_id)
+    return series.team_series(events, load_matches(provider_key, competition_id, season_id))
+
+
+@st.cache_data(show_spinner=False)
+def player_series_table(provider_key: str, competition_id: int, season_id: int, player: str) -> pd.DataFrame:
+    """Producción de un jugador partido a partido."""
+    events = load_events(provider_key, competition_id, season_id)
+    return series.player_series(events, player, load_matches(provider_key, competition_id, season_id))
+
+
+@st.cache_data(show_spinner=False)
 def entrena_xg(provider_key: str, competition_id: int, season_id: int):
     """Entrena el modelo de xG propio sobre la competición (resumen, tiros)."""
     events = load_events(provider_key, competition_id, season_id)
@@ -150,9 +180,9 @@ def sidebar_context() -> dict:
     if not providers[provider_key].available():
         st.sidebar.warning("Este proveedor aún no está disponible.")
         st.info(
-            "**Wyscout está preparado pero pendiente de credenciales.** "
-            "Implementar el mapeo de eventos en `providers/wyscout.py` y definir "
-            "`WYSCOUT_CLIENT_ID` / `WYSCOUT_CLIENT_SECRET`. "
+            "**Wyscout está implementado pero pendiente de credenciales.** El mapeo de "
+            "eventos, los minutos y el calendario están escritos y cubiertos por tests; "
+            "solo faltan `WYSCOUT_CLIENT_ID` / `WYSCOUT_CLIENT_SECRET` en tu `.env`. "
             "Mientras tanto, usa StatsBomb (open data)."
         )
         st.stop()

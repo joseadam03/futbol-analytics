@@ -51,9 +51,16 @@ Multipágina, con navegación propia:
   competición, lectura en prosa y tabla descargable.
 - **Competición** — dispersión interactiva de todos los jugadores (ejes a elegir,
   tooltip con nombre) y tabla completa descargable en CSV.
-- **Modelo xG** — regresión logística propia (distancia, ángulo, cabeza)
-  entrenada sobre la competición con validación cruzada, contrastada con el xG
-  de StatsBomb: curva de calibración, Brier score y coeficientes interpretables.
+- **Secuencias** — de dónde nacen las ocasiones de cada equipo: origen de la
+  posesión (juego elaborado, córner, robo alto, contragolpe), pases previos al
+  tiro, duración y velocidad directa, con el mapa elaboración vs. verticalidad.
+- **Evolución** — el rendimiento partido a partido con media móvil y npxG
+  acumulado, para equipo y jugador: una media de temporada esconde las rachas.
+- **Modelo xG** — dos modelos propios comparados fuera de muestra: uno
+  geométrico (distancia, ángulo, cabeza) y otro **contextual**, que añade
+  presión, defensores en el cono de tiro y posición del portero desde el
+  *freeze frame*. Gana el que mejor calibra, con curva de fiabilidad, Brier
+  score y coeficientes interpretables.
 - **Metodología** — definición exacta de cada métrica dentro de la propia app.
 - **Modo claro y oscuro**: los gráficos siguen el tema del usuario con una paleta
   validada para accesibilidad y daltonismo en ambas variantes.
@@ -152,10 +159,20 @@ cálculos, y los penaltis dentro del juego de las métricas de tiro.
   verticalidad) en z-scores de la competición, cruzado con los rasgos per-90
   estandarizados del jugador vía una matriz de afinidad documentada en `fit.py`,
   más la mejora que aporta al nivel del puesto (rol fino, ponderado por minutos).
-- **xG propio** — regresión logística sobre distancia, ángulo de portería y
-  remate de cabeza, entrenada en la competición cargada. Las predicciones que se
-  muestran son *out-of-fold* (validación cruzada estratificada), así que la curva
-  de calibración y el Brier score no están medidos sobre los datos de ajuste.
+- **xG propio** — dos modelos entrenados en la competición cargada: uno
+  geométrico (distancia, ángulo, cabeza) y uno contextual que añade presión sobre
+  el tirador, defensores dentro del cono tirador–poste–poste, distancia al
+  defensor más cercano, posición del portero, mano a mano, remate de primeras y
+  patrón de juego. Predicciones *out-of-fold* y regularización elegida por
+  validación cruzada **anidada**, de modo que la comparación es honesta; gana el
+  que mejor calibra, y con muestras pequeñas a veces gana el geométrico.
+- **Secuencias de posesión** — cada posesión que acaba en tiro se clasifica por
+  su patrón de origen, su zona de inicio (arrancar en campo contrario es un robo,
+  no una construcción), los pases previos al tiro, la duración y la velocidad
+  directa hacia la portería rival.
+- **Series temporales** — métricas por partido ordenadas por fecha (o por
+  calendario si el proveedor no da fechas), con media móvil de 5 partidos y
+  acumulados de npxG.
 
 ### Limitaciones conocidas
 
@@ -177,14 +194,17 @@ cálculos, y los penaltis dentro del juego de las métricas de tiro.
 ```
 streamlit_app.py      # entrada de la app (navegación multipágina)
 app_common.py         # estado compartido: carga de datos, sidebar, descargas
-app_pages/            # Inicio · Buscador · Jugador · Comparar · Encaje · Equipos · Informe de equipo · Competición · Modelo xG · Metodología
+app_pages/            # Inicio · Buscador · Jugador · Comparar · Encaje · Equipos · Informe de equipo
+                      # Competición · Secuencias · Evolución · Modelo xG · Metodología
 src/futbol_analytics/
   providers/          # contrato común + StatsBomb + Wyscout + demo sintética
   metrics.py          # métricas per-90 de jugador, PAdj, percentiles por grupo o rol
   teams.py            # rendimiento y estilo de equipo (ritmo, presión, progresión)
   similarity.py       # motor de jugadores similares
   fit.py              # motor de encaje jugador–equipo (estilo × rasgos + mejora del puesto)
-  xg.py               # modelo de xG propio y su calibración
+  sequences.py        # secuencias de posesión: origen y forma de cada ocasión
+  series.py           # series temporales por jornada, con medias móviles
+  xg.py               # modelos de xG (geométrico y contextual) y su calibración
   report.py           # informe-CV de una página en PDF
   viz.py              # radar, mapas, mapa de estilo, calibración (tema claro/oscuro)
   tsdb.py             # cliente de TheSportsDB (validación estricta + circuito de corte)
@@ -193,6 +213,7 @@ src/futbol_analytics/
 scripts/
   player_report.py    # CLI: informe estático de un jugador (PNGs, CSVs y PDF)
   warm_cache.py       # precalienta la caché de una competición
+  verify_wyscout.py   # verifica el mapeo de Wyscout contra un partido real
 tests/                # unitarios, de humo y de interfaz (AppTest) — siempre sin red
 .github/workflows/    # CI: lint+formato, tipos, auditoría, tests, Docker y publicación
 Dockerfile            # imagen multi-stage, usuario sin privilegios, healthcheck
@@ -232,13 +253,19 @@ oficial ya lo hace) y precalentar con `make warm`.
 
 ## Hoja de ruta
 
-Completada la hoja de ruta inicial (proveedor Wyscout, percentiles por rol,
-informe de equipo y ajuste de nivel entre competiciones). Lo siguiente:
+Completadas las dos primeras hojas de ruta: proveedor Wyscout, percentiles por
+rol, informe de equipo, ajuste de nivel entre ligas, xG contextual, secuencias
+de posesión y series temporales. Queda pendiente de acceso externo:
 
-- Verificar el mapeo de Wyscout contra partidos reales, en cuanto haya acceso
-- Modelo de xG con más contexto (presión sobre el tirador, portero)
-- Secuencias de posesión: de dónde nacen las ocasiones de cada equipo
-- Series temporales: evolución del rendimiento por jornada
+- **Verificar el mapeo de Wyscout contra partidos reales** — el código está
+  escrito y probado con payloads sintéticos; `scripts/verify_wyscout.py` deja la
+  verificación en un comando en cuanto lleguen las credenciales.
+
+Lo siguiente, cuando haya ganas:
+
+- Modelo de xG por tramos (xG de disparo vs. xG tras el remate, *post-shot*)
+- Redes de pases y roles emergentes por clustering
+- Valor añadido por acción (VAEP/xT) sobre el esquema común
 
 ## Créditos
 

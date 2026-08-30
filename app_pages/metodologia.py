@@ -65,14 +65,33 @@ perfil zurdo/diestro, química ni contexto de club.
 
 | Componente | Definición |
 |---|---|
-| **Rasgos** | Distancia a portería, ángulo que subtiende la portería desde el punto de tiro y remate de cabeza |
-| **Modelo** | Regresión logística entrenada sobre los tiros de la competición cargada (sin penaltis ni tandas) |
-| **Validación** | Predicciones *out-of-fold* con validación cruzada estratificada: cada tiro se evalúa con un modelo que no lo vio |
-| **Brier score** | Error cuadrático medio de la probabilidad; se compara con el xG del proveedor y con predecir a todos la tasa media de gol |
+| **Modelo geométrico** | Distancia a portería, ángulo que subtiende la portería desde el punto de tiro y remate de cabeza |
+| **Modelo contextual** | Añade presión sobre el tirador, defensores dentro del triángulo tirador–poste–poste, distancia al defensor más cercano, distancia del portero a su portería y su desvío del eje del tiro, mano a mano, remate de primeras y patrón de juego |
+| **Validación** | Predicciones *out-of-fold*; la fuerza de la regularización se elige por validación cruzada **anidada**, dentro de cada fold de entrenamiento |
+| **Selección** | Gana el modelo con mejor Brier fuera de muestra: más rasgos no es mejor por definición, y con pocos tiros el contextual sobreajusta |
 | **Calibración** | Curva de fiabilidad por tramos de xG: predicho frente a frecuencia real de gol |
 
-El objetivo no es batir al xG de StatsBomb —que ve presión, portero y contexto—,
-sino tener un modelo transparente y comprobar si está bien calibrado.
+El objetivo no es batir al xG de StatsBomb —que ve la altura del balón, la
+trayectoria y el cuerpo del portero—, sino tener un modelo transparente y
+comprobar cuánto añade cada capa de información.
+
+#### Secuencias de posesión
+
+| Concepto | Definición |
+|---|---|
+| **Secuencia** | Posesión continua de un equipo que acaba en tiro (sin penaltis ni tandas) |
+| **Patrón de origen** | Cómo empezó: juego regular, córner, falta, saque de banda, contragolpe, saque de puerta… |
+| **Zona de inicio** | x del primer evento del equipo en la posesión; a partir de x = 60 se cuenta como nacida en campo contrario |
+| **Pases previos** | Pases propios antes del primer tiro: muchos = elaboración, cero o uno = transición |
+| **Velocidad directa** | Avance hacia la portería rival por segundo. Las secuencias de balón parado empiezan cerca del área, así que su velocidad sale baja por construcción |
+
+#### Series temporales
+
+Las métricas por partido se ordenan por fecha (o por el orden del calendario si
+el proveedor no da fechas) y se acompañan de una **media móvil de 5 partidos**:
+el dato de un partido es ruido, la tendencia informa. Se muestran también los
+acumulados de npxG a favor y en contra, cuyo cruce marca el momento en que
+cambió una temporada.
 
 #### Limitaciones conocidas
 

@@ -48,7 +48,10 @@ def team_match_stats(events: pd.DataFrame) -> pd.DataFrame:
         },
         index=ev.index,
     ).astype(float)
-    flags["npxg"] = np.where(is_shot & non_penalty, col("shot_statsbomb_xg").fillna(0.0), 0.0)
+    # a numérico explícito: si ningún tiro trae xG la columna llega como objeto
+    # y los acumulados posteriores (cumsum, medias) fallarían
+    xg_vals = pd.to_numeric(col("shot_statsbomb_xg"), errors="coerce").fillna(0.0)
+    flags["npxg"] = np.where(is_shot & non_penalty, xg_vals, 0.0).astype(float)
 
     flags["match_id"] = ev["match_id"]
     flags["team"] = ev["team"]

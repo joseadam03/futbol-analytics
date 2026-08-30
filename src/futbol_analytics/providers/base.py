@@ -42,6 +42,14 @@ class Provider(ABC):
     def competitions(self) -> pd.DataFrame:
         """Competiciones/temporadas disponibles (competition_id, season_id, nombres)."""
 
+    def matches(self, competition_id: int, season_id: int) -> pd.DataFrame:
+        """Partidos de la competición (match_id y, si se conocen, fecha y jornada).
+
+        Lo consumen las series temporales para ordenar el calendario. Un
+        proveedor que no lo sepa devuelve vacío y el orden cae al match_id.
+        """
+        return pd.DataFrame(columns=["match_id", "match_date", "match_week"])
+
     @abstractmethod
     def events(self, competition_id: int, season_id: int, refresh: bool = False) -> pd.DataFrame:
         """Eventos de toda la competición, en el esquema común."""
