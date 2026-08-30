@@ -7,7 +7,7 @@ import io
 import pandas as pd
 import streamlit as st
 
-from futbol_analytics import metrics, photos, report, sequences, series, teams, tsdb, viz, xg
+from futbol_analytics import metrics, photos, report, sequences, series, sportmonks, teams, tsdb, viz, xg
 from futbol_analytics.providers import get_provider, list_providers
 
 SCATTER_COLORS = {
@@ -72,6 +72,12 @@ def photo_of(display_name: str) -> str | None:
 def buscar_fichas(query: str) -> list[dict]:
     """Fichas externas de TheSportsDB; propaga ServiceUnavailable (no se cachea)."""
     return tsdb.search_players(query)
+
+
+@st.cache_data(show_spinner=False, ttl=3600)
+def buscar_estadisticas_sportmonks(query: str) -> dict | None:
+    """Ficha con estadísticas de temporada (Sportmonks); propaga ServiceUnavailable."""
+    return sportmonks.player_ficha(query)
 
 
 @st.cache_data(show_spinner=False)

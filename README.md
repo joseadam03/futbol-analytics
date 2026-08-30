@@ -32,7 +32,9 @@ Multipágina, con navegación propia:
 - **Inicio** — resumen de la competición y jugadores destacados.
 - **Buscador** — localiza a cualquier jugador: si está en la competición cargada
   salta a su informe completo; si no está en los open data, muestra su ficha
-  informativa vía TheSportsDB y enlaces para seguir el scouting fuera.
+  informativa vía TheSportsDB, sus **estadísticas de temporada reales** vía
+  Sportmonks (goles, asistencias, minutos, apariciones — con token configurado)
+  y enlaces para seguir el scouting fuera.
 - **Jugador** — radar de percentiles per-90, mapas de campo (calor de toques,
   pases progresivos/clave, tiros con tamaño ∝ xG), perfiles similares con foto y
   botón para generar el **informe-CV en PDF de una página**.
@@ -132,6 +134,19 @@ que añadir una fuente nueva no toca nada más.
   con `FUTBOL_ANALYTICS_FAKE=1` y es lo que usan los tests de interfaz para
   renderizar la app entera en segundos.
 
+Aparte de los proveedores (que dan eventos con coordenadas para radar, mapas y
+xG), el **Buscador** usa dos servicios de ficha más ligeros para jugadores
+fuera de los open data:
+
+- **TheSportsDB** — foto y biografía (gratuito, sin token).
+- **Sportmonks** — estadísticas reales de temporada (goles, asistencias,
+  minutos, apariciones, tarjetas). Verificado contra la API real: su endpoint
+  de eventos es un *timeline* de incidencias sin coordenadas (18 eventos en
+  todo un partido, ninguno con `location`), así que no puede alimentar radar,
+  mapas ni el modelo de xG — de ahí que viva en `sportmonks.py` en vez de
+  implementar el contrato `Provider`. Requiere `SPORTMONKS_API_TOKEN`; sin él,
+  el Buscador sigue funcionando igual, solo sin esa sección.
+
 ## Metodología
 
 Reglas globales: se excluyen las tandas de penaltis (periodo 5) de todos los
@@ -226,6 +241,7 @@ src/futbol_analytics/
   viz.py              # radar, mapas, mapa de estilo, calibración (tema claro/oscuro)
   tsdb.py             # cliente de TheSportsDB (validación estricta + circuito de corte)
   photos.py           # fotos de jugadores (TheSportsDB, con caché)
+  sportmonks.py       # estadísticas de temporada del Buscador (sin coordenadas, no es un Provider)
   paths.py            # rutas de caché, configurables por entorno
 scripts/
   player_report.py    # CLI: informe estático de un jugador (PNGs, CSVs y PDF)
@@ -263,10 +279,11 @@ informativo) y **publish**, que sube la imagen a GHCR en cada push a `main`
 —etiquetada `latest` y por SHA— solo si todo lo anterior está en verde.
 Dependabot mantiene al día pip, GitHub Actions y la imagen base.
 
-Para el proveedor Wyscout, copia `.env.example` a `.env` y rellena las
-credenciales (la app y el CLI cargan `.env` automáticamente). La caché de datos
-se puede reubicar con `FUTBOL_ANALYTICS_CACHE` (útil en contenedores; la imagen
-oficial ya lo hace) y precalentar con `make warm`.
+Para el proveedor Wyscout y las estadísticas de Sportmonks del Buscador, copia
+`.env.example` a `.env` y rellena las credenciales (la app y el CLI cargan
+`.env` automáticamente). La caché de datos se puede reubicar con
+`FUTBOL_ANALYTICS_CACHE` (útil en contenedores; la imagen oficial ya lo hace) y
+precalentar con `make warm`.
 
 ## Hoja de ruta
 
@@ -289,3 +306,4 @@ Lo siguiente, cuando haya ganas:
 Datos: StatsBomb open data (uso no comercial, [términos](https://github.com/statsbomb/open-data/blob/master/LICENSE.pdf)).
 Visualización sobre campo: [mplsoccer](https://mplsoccer.readthedocs.io/).
 Fotos de jugadores: [TheSportsDB](https://www.thesportsdb.com/) (API gratuita, uso no comercial).
+Estadísticas de temporada del Buscador: [Sportmonks](https://www.sportmonks.com/).

@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from futbol_analytics import photos, tsdb
+from futbol_analytics import photos, sportmonks, tsdb
 
 ROOT = Path(__file__).resolve().parents[1]
 PAGINAS = [
@@ -33,6 +33,7 @@ PAGINAS = [
 @pytest.fixture(autouse=True)
 def modo_demo(monkeypatch, tmp_path):
     monkeypatch.setenv("FUTBOL_ANALYTICS_FAKE", "1")
+    monkeypatch.delenv("SPORTMONKS_API_TOKEN", raising=False)  # determinista pese al entorno real
     monkeypatch.setattr(tsdb, "search_players", lambda name: [])  # nada de red
     monkeypatch.setattr(photos, "CACHE_FILE", tmp_path / "photos.json")  # ni de disco compartido
 
@@ -56,3 +57,44 @@ def test_cada_pagina_renderiza_sin_excepciones(pagina):
     at.switch_page(f"app_pages/{pagina}.py")
     at.run()
     assert not at.exception, [str(e.value) for e in at.exception]
+
+
+def _buscar(at: AppTest, nombre_ausente: str) -> AppTest:
+    at.switch_page("app_pages/buscador.py")
+    at.run()
+    at.text_input(key="buscador_query").set_value(nombre_ausente).run()
+    assert not at.exception, [str(e.value) for e in at.exception]
+    return at
+
+
+def test_buscador_sin_token_muestra_la_pista(monkeypatch):
+    at = _buscar(_app(), "Sin Token De Prueba")
+    assert any("SPORTMONKS_API_TOKEN" in c.value for c in at.caption)
+
+
+def test_buscador_con_sportmonks_muestra_la_tabla_de_temporadas(monkeypatch):
+    # nombre de búsqueda propio: st.cache_data es del proceso y no se resetea
+    # entre AppTest, así que reutilizar una consulta ya cacheada por otro test
+    # devolvería su resultado en vez de invocar el monkeypatch de este
+    monkeypatch.setenv("SPORTMONKS_API_TOKEN", "test-token")
+    monkeypatch.setattr(
+        sportmonks,
+        "player_ficha",
+        lambda name: {
+            "nombre": "Franculino",
+            "temporadas": [{"season_name": "2025/2026", "goals": 17.0, "minutes": 1343.0}],
+        },
+    )
+    at = _buscar(_app(), "Franculino Con Datos")
+    assert len(at.dataframe) >= 1
+
+
+def test_buscador_sportmonks_caido_no_revienta(monkeypatch):
+    monkeypatch.setenv("SPORTMONKS_API_TOKEN", "test-token")
+
+    def revienta(name):
+        raise sportmonks.ServiceUnavailable("caído")
+
+    monkeypatch.setattr(sportmonks, "player_ficha", revienta)
+    at = _buscar(_app(), "Consulta Que Falla")
+    assert any("Sportmonks no responde" in e.value for e in at.error)

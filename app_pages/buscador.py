@@ -8,10 +8,11 @@ TheSportsDB y ofrece enlaces para seguir el scouting fuera.
 import unicodedata
 from urllib.parse import quote_plus
 
+import pandas as pd
 import streamlit as st
 
 import app_common as ac
-from futbol_analytics import tsdb
+from futbol_analytics import sportmonks, tsdb
 
 ctx = st.session_state["ctx"]
 table = ctx["table"]
@@ -117,6 +118,43 @@ else:
             "de eventos no hay radar ni percentiles: para métricas de jugadores fuera de "
             "los open data hace falta un proveedor con cobertura (p. ej. Wyscout, cuya "
             "integración ya está preparada en la app)."
+        )
+
+    if sportmonks.available():
+        st.markdown("#### Estadísticas de temporada (Sportmonks)")
+        st.caption(
+            "Sportmonks no da coordenadas de jugada (ese endpoint es un timeline de "
+            "goles, tarjetas y cambios, no cada toque de balón), así que no alimenta el "
+            "radar ni el mapa de calor — pero sí trae goles, asistencias, minutos y "
+            "apariciones reales por temporada, verificados contra la API."
+        )
+        with st.spinner("Consultando Sportmonks..."):
+            try:
+                ficha_sm = ac.buscar_estadisticas_sportmonks(q)
+                sm_caido = False
+            except sportmonks.ServiceUnavailable:
+                ficha_sm, sm_caido = None, True
+
+        if sm_caido:
+            st.error("Sportmonks no responde ahora mismo. Reintenta en unos minutos.")
+        elif not ficha_sm:
+            st.info(f"Sportmonks no tiene ficha para «{q}».")
+        else:
+            temporadas = ficha_sm.get("temporadas") or []
+            if not temporadas:
+                st.info(f"{ficha_sm['nombre']} está en Sportmonks pero sin estadísticas registradas.")
+            else:
+                tabla_sm = pd.DataFrame(temporadas).sort_values("season_name", ascending=False)
+                cols = ["season_name"] + [c for c in sportmonks.STAT_LABELS if c in tabla_sm.columns]
+                st.dataframe(
+                    tabla_sm[cols].rename(columns={"season_name": "Temporada", **sportmonks.STAT_LABELS}),
+                    use_container_width=True,
+                    hide_index=True,
+                )
+    else:
+        st.caption(
+            "💡 Con un token de Sportmonks (`SPORTMONKS_API_TOKEN` en `.env`) esta ficha "
+            "incluiría también goles, asistencias y minutos reales por temporada."
         )
 
 st.divider()
