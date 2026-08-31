@@ -178,7 +178,7 @@ def player_report_pdf(
     _header_band(fig, display, height=0.035)
     # aspecto casi cuadrado (no la franja ancha de antes): menos estiramiento
     # al escalar avatares pequeños, que es lo que más se nota como "borroso"
-    foto_ok = _embed_photo(fig, photo_url, (0.06, 0.865, 0.14, 0.095))
+    foto_ok = _embed_photo(fig, photo_url, (0.06, 0.885, 0.14, 0.075))
     x_text = 0.23 if foto_ok else 0.06
 
     # dos líneas cortas en vez de cinco datos apretados en una: equipo y
@@ -193,11 +193,11 @@ def player_report_pdf(
     # fortalezas/debilidades como tabla de dos columnas (mismo patrón que
     # "Perfiles similares"/"Mejores destinos" más abajo), no un párrafo: se
     # lee de un vistazo. Empieza por debajo de la foto para no invadirla.
-    # 2 rasgos por columna: título+percentil y definición en líneas propias,
-    # así el percentil —lo que más importa— no se pierde si la línea no
-    # cabe entera. y_fd sube desde 0.855 para aprovechar el hueco que deja
-    # el resumen de arriba y así caber los 4 rasgos sin tocar las tarjetas.
-    y_fd = 0.875
+    # 2 rasgos por columna: título+percentil y definición en líneas propias.
+    # y_fd tiene que quedar por debajo del borde inferior de la foto (0.885)
+    # para no invadirla — con foto real esto se nota enseguida, aunque en
+    # un render sin foto (p.ej. sin red) pase desapercibido.
+    y_fd = 0.872
     paso = 0.033
 
     def _rasgos(x: float, titulo_seccion: str, rasgos: list[tuple[str, str]]) -> None:
