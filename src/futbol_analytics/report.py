@@ -72,6 +72,16 @@ def _section_heading(fig, x: float, y: float, text: str) -> None:
     fig.text(x + 0.016, y, text, fontsize=11, fontweight="bold", color=viz.INK, va="top")
 
 
+def _truncate(text: str, maxlen: int = 56) -> str:
+    """Corta una línea antes de que invada la columna vecina.
+
+    Nombres reales (p. ej. "Lionel Andrés Messi Cuccittini... Right Center
+    Forward") son mucho más largos que los de prueba y sin esto se salen
+    de su columna a dos columnas por página.
+    """
+    return text if len(text) <= maxlen else text[: maxlen - 1].rstrip() + "…"
+
+
 def player_report_pdf(
     table: pd.DataFrame,
     events: pd.DataFrame,
@@ -156,7 +166,7 @@ def player_report_pdf(
         fig.text(
             0.06,
             y0 - 0.021 - 0.0175 * i,
-            f"{s['similarity']:.3f}   {s['player']}  ({s['team']}, {s['primary_position']})",
+            _truncate(f"{s['similarity']:.3f}   {s['player']}  ({s['team']}, {s['primary_position']})"),
             fontsize=8.5,
             color=viz.INK_2,
             va="top",
@@ -167,7 +177,9 @@ def player_report_pdf(
         fig.text(
             0.54,
             y0 - 0.021 - 0.0175 * i,
-            f"{d['encaje']:.0f}   {d['team']}  (estilo {d['estilo']:+.2f}, mejora {d['mejora_puesto']:+.0f})",
+            _truncate(
+                f"{d['encaje']:.0f}   {d['team']}  (estilo {d['estilo']:+.2f}, mejora {d['mejora_puesto']:+.0f})"
+            ),
             fontsize=8.5,
             color=viz.INK_2,
             va="top",
