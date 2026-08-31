@@ -30,13 +30,22 @@ def _fig_png(fig, dpi: int = 110) -> io.BytesIO:
     return buf
 
 
-def _embed_photo(fig, url: str | None, pos: tuple[float, float, float, float]) -> bool:
+def _embed_photo(
+    fig, url: str | None, pos: tuple[float, float, float, float], min_dpi: float = 140.0
+) -> bool:
     """Incrusta la foto del jugador si hay URL y se puede descargar; si no, no dibuja nada.
 
     Un PDF sin foto sigue siendo válido: es mejor un hueco en blanco que
     reventar el informe por una foto caída o un formato que PIL no reconozca.
     Devuelve si se dibujó, para que el llamante decida si reservar sitio
     para ella o cerrar el hueco.
+
+    Los avatares de TheSportsDB/Sportmonks a veces son pequeños (cientos de
+    píxeles, no miles); estirarlos a la caja pedida los deja pixelados sin
+    remedio — ningún filtro de interpolación inventa detalle que no existe.
+    Si la resolución nativa no llega a `min_dpi` dentro de la caja, se
+    reduce (centrada en el mismo hueco) hasta que sí se vea nítida, en vez
+    de forzarla al tamaño completo.
     """
     if not url:
         return False
@@ -48,10 +57,20 @@ def _embed_photo(fig, url: str | None, pos: tuple[float, float, float, float]) -
         img.load()
     except Exception:
         return False
-    ax = fig.add_axes(pos)
-    # lanczos suaviza el escalado de fotos pequeñas (avatares de TheSportsDB/
-    # Sportmonks); no añade detalle que no había, pero evita el aspecto
-    # "pixelado" del muestreo por vecino más cercano que usa matplotlib por defecto.
+
+    x, y, w, h = pos
+    fig_w_in, fig_h_in = fig.get_size_inches()
+    dpi_nativo = min(img.width / (w * fig_w_in), img.height / (h * fig_h_in))
+    if dpi_nativo < min_dpi:
+        factor = dpi_nativo / min_dpi
+        nuevo_w, nuevo_h = w * factor, h * factor
+        x, y = x + (w - nuevo_w) / 2, y + (h - nuevo_h) / 2
+        w, h = nuevo_w, nuevo_h
+
+    ax = fig.add_axes((x, y, w, h))
+    # lanczos suaviza el escalado que sí hace falta (la caja ya no excede
+    # lo que la foto aguanta con nitidez) en vez del vecino más cercano
+    # por defecto de matplotlib.
     ax.imshow(img, interpolation="lanczos")
     ax.axis("off")
     return True
@@ -149,27 +168,25 @@ def player_report_pdf(
     fig = plt.figure(figsize=(8.27, 11.69))  # A4 vertical
     fig.set_facecolor(viz.SURFACE)
 
-    subtitulo = " · ".join(
-        str(v)
-        for v in (
-            prow["team"],
-            prow["primary_position"],
-            rol if isinstance(rol, str) else None,
-            f"{prow['minutes']:.0f} min",
-            comp_label,
-        )
-        if v
-    )
+    posicion = prow["primary_position"]
+    if isinstance(rol, str) and rol and rol != posicion:
+        posicion = f"{posicion} ({rol})"
+    linea1 = " · ".join(str(v) for v in (prow["team"], posicion) if v)
+    linea2 = " · ".join(str(v) for v in (f"{prow['minutes']:.0f} min", comp_label) if v)
+
     _header_band(fig, display, height=0.035)
     # aspecto casi cuadrado (no la franja ancha de antes): menos estiramiento
     # al escalar avatares pequeños, que es lo que más se nota como "borroso"
     foto_ok = _embed_photo(fig, photo_url, (0.06, 0.865, 0.14, 0.095))
     x_text = 0.23 if foto_ok else 0.06
 
-    fig.text(x_text, 0.95, subtitulo, fontsize=10, color=viz.INK_2, va="top")
+    # dos líneas cortas en vez de cinco datos apretados en una: equipo y
+    # posición por un lado, minutos y competición por otro
+    fig.text(x_text, 0.95, linea1, fontsize=10, color=viz.INK_2, va="top")
+    fig.text(x_text, 0.932, linea2, fontsize=9, color=viz.MUTED, va="top")
     resumen_texto = narrative.player_summary(prow, pool_desc, sims)
     if resumen_texto:
-        fig.text(x_text, 0.923, resumen_texto, fontsize=8.5, color=viz.INK_2, va="top", wrap=True)
+        fig.text(x_text, 0.905, resumen_texto, fontsize=8.5, color=viz.INK_2, va="top", wrap=True)
 
     tiles = [
         ("npxG/90", f"{prow['npxg_p90']:.2f}", prow["npxg_p90_pct"]),
@@ -177,15 +194,15 @@ def player_report_pdf(
         ("Pases prog./90", f"{prow['prog_passes_p90']:.1f}", prow["prog_passes_p90_pct"]),
         ("Presiones/90", f"{prow['pressures_p90']:.1f}", prow["pressures_p90_pct"]),
     ]
-    # la narrativa ahora ocupa varias líneas (explica cada métrica, no solo la
-    # nombra): las tarjetas y los paneles bajan para dejarle sitio
-    _stat_tiles(fig, y_top=0.815, height=0.05, stats=tiles)
+    # la cabecera ahora tiene dos líneas de datos más la narrativa (varias
+    # líneas): las tarjetas y los paneles bajan un poco más para dejarle sitio
+    _stat_tiles(fig, y_top=0.8, height=0.05, stats=tiles)
 
     posiciones = [  # (izquierda, abajo, ancho, alto) en fracción de página
-        (0.035, 0.46, 0.46, 0.3),
-        (0.515, 0.46, 0.46, 0.3),
-        (0.035, 0.13, 0.46, 0.3),
-        (0.515, 0.13, 0.46, 0.3),
+        (0.035, 0.46, 0.46, 0.29),
+        (0.515, 0.46, 0.46, 0.29),
+        (0.035, 0.13, 0.46, 0.29),
+        (0.515, 0.13, 0.46, 0.29),
     ]
     for buf, pos in zip(paneles, posiciones):
         ax = fig.add_axes(pos)

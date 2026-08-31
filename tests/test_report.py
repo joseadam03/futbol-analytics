@@ -2,7 +2,9 @@
 
 import io
 
+import matplotlib.pyplot as plt
 import pandas as pd
+import pytest
 from PIL import Image
 
 from futbol_analytics import fit, report
@@ -113,6 +115,40 @@ def test_player_report_pdf_sin_foto_o_con_foto_rota_no_revienta(monkeypatch):
         tabla(), eventos(), "Jugadora Test", "Competición Test", photo_url="https://img/vacia.png"
     )
     assert pdf[:5] == b"%PDF-"
+
+
+def _png_de(width: int, height: int) -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGB", (width, height), color=(80, 80, 200)).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def test_embed_photo_reduce_una_foto_de_baja_resolucion(monkeypatch):
+    # avatar pequeño real (TheSportsDB/Sportmonks): estirarlo a la caja
+    # completa lo dejaría pixelado, así que la caja se encoge en su lugar.
+    # original=True: la caja que se pidió, antes de que matplotlib ajuste
+    # la posición "activa" por su propio letterboxing de aspecto (aparte).
+    monkeypatch.setattr(report.photos, "fetch_bytes", lambda url: _png_de(40, 40))
+    fig = plt.figure(figsize=(8.27, 11.69))
+    try:
+        assert report._embed_photo(fig, "https://img/pequena.png", (0.06, 0.7, 0.3, 0.2))
+        box = fig.axes[-1].get_position(original=True)
+        assert box.width < 0.3
+        assert box.height < 0.2
+    finally:
+        plt.close(fig)
+
+
+def test_embed_photo_no_encoge_una_foto_de_alta_resolucion(monkeypatch):
+    monkeypatch.setattr(report.photos, "fetch_bytes", lambda url: _png_de(2000, 2000))
+    fig = plt.figure(figsize=(8.27, 11.69))
+    try:
+        assert report._embed_photo(fig, "https://img/grande.png", (0.06, 0.7, 0.3, 0.2))
+        box = fig.axes[-1].get_position(original=True)
+        assert box.width == pytest.approx(0.3)
+        assert box.height == pytest.approx(0.2)
+    finally:
+        plt.close(fig)
 
 
 def test_ficha_report_pdf_completa_con_foto_bio_y_temporadas(monkeypatch):
