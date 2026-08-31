@@ -2,11 +2,22 @@
 
 [![CI](https://github.com/joseadam03/futbol-analytics/actions/workflows/ci.yml/badge.svg)](https://github.com/joseadam03/futbol-analytics/actions/workflows/ci.yml)
 
-Aplicación de análisis de rendimiento de jugadores sobre
-[StatsBomb open data](https://github.com/statsbomb/open-data): métricas per-90,
-percentiles por grupo posicional, comparador de jugadores, motor de similitud,
-**encaje jugador–equipo**, **modelo de xG propio** e informe-CV en PDF — con
-interfaz web, CLI y arquitectura preparada para más proveedores (Wyscout).
+**[▶ Probar la app en vivo](https://futbol-analytics.streamlit.app/)** — sin instalar nada.
+
+Cojo los datos de eventos abiertos de un Mundial o una Euro y le pregunto al
+dato lo que un ojeador pregunta de memoria: ¿a qué se parece este jugador?,
+¿en qué equipo rendiría mejor?, ¿es su volumen de tiros suerte o es de
+verdad? Por ejemplo: según el modelo de similitud, el perfil de Kylian
+Mbappé en el Mundial 2022 es el más parecido... al de Messi — no por ojo,
+por el mismo vector de métricas per-90 estandarizadas que ves en la app.
+
+Construido para demostrar cómo trabajo con datos deportivos: métricas per-90,
+percentiles por rol, un **modelo de xG propio** validado con cross-validation
+anidada (nada de train=test), un motor de **encaje jugador–equipo**, e
+informes-CV en PDF listos para mandar. Con interfaz web, CLI, y una suite de
+tests + CI/CD como la de cualquier servicio en producción — no solo notebooks.
+
+![Captura de la página Jugador: radar de percentiles, tarjetas de estadística y lectura en texto llano](docs/screenshot.png)
 
 > Proyecto de portafolio. El objetivo no es acumular gráficos, sino medir bien:
 > cada métrica está definida abajo, con sus supuestos y sus limitaciones.
@@ -37,8 +48,10 @@ Multipágina, con navegación propia:
   botón para descargar esa ficha como **informe-CV en PDF** (foto, biografía y
   estadísticas de temporada) y enlaces para seguir el scouting fuera.
 - **Jugador** — radar de percentiles per-90, mapas de campo (calor de toques,
-  pases progresivos/clave, tiros con tamaño ∝ xG), perfiles similares con foto y
-  botón para generar el **informe-CV en PDF de una página**.
+  pases progresivos/clave, tiros con tamaño ∝ xG), perfiles similares con foto,
+  una **lectura en lenguaje llano** generada por reglas sobre los mismos
+  percentiles (nada de texto inventado, todo trazable a la tabla) y botón para
+  generar el **informe-CV en PDF de una página**.
 - **Comparar** — radar superpuesto de dos jugadores (por defecto, el más similar)
   con tabla de valores y percentiles lado a lado.
 - **Encaje** — motor de encaje jugador–equipo: a qué equipos les encaja un
@@ -239,6 +252,7 @@ src/futbol_analytics/
   sequences.py        # secuencias de posesión: origen y forma de cada ocasión
   series.py           # series temporales por jornada, con medias móviles
   xg.py               # modelos de xG (geométrico y contextual) y su calibración
+  narrative.py        # lectura en lenguaje llano de un jugador, por reglas sobre sus percentiles
   report.py           # informe-CV de una página en PDF
   viz.py              # radar, mapas, mapa de estilo, calibración (tema claro/oscuro)
   tsdb.py             # cliente de TheSportsDB (validación estricta + circuito de corte)
