@@ -8,6 +8,7 @@ para imprimir o adjuntar.
 
 from __future__ import annotations
 
+import gc
 import io
 
 import matplotlib.image as mpimg
@@ -21,7 +22,7 @@ from . import fit, narrative, photos, similarity, viz
 WHITE = "#ffffff"
 
 
-def _fig_png(fig, dpi: int = 150) -> io.BytesIO:
+def _fig_png(fig, dpi: int = 110) -> io.BytesIO:
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=dpi, facecolor=fig.get_facecolor(), bbox_inches="tight")
     plt.close(fig)
@@ -225,7 +226,13 @@ def player_report_pdf(
     out = io.BytesIO()
     fig.savefig(out, format="pdf", facecolor=fig.get_facecolor())
     plt.close(fig)
-    return out.getvalue()
+    data = out.getvalue()
+    # este informe es el que más memoria mueve (cuatro paneles a la vez
+    # sobre los eventos de toda la competición); liberar cuanto antes en
+    # vez de esperar al ciclo normal del GC importa en un contenedor con
+    # RAM ajustada (Streamlit Community Cloud, ~1 GB)
+    gc.collect()
+    return data
 
 
 def ficha_report_pdf(ficha: dict | None, ficha_sm: dict | None, query: str) -> bytes:
