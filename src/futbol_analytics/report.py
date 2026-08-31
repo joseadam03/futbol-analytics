@@ -161,7 +161,8 @@ def player_report_pdf(
         _fig_png(viz.pass_map(events, player, comp_label, display)),
     ]
 
-    sims = similarity.similar_players(table, player).head(5)
+    # 4, no 5: deja sitio a la nota de que "parecido" es de estilo, no de nivel
+    sims = similarity.similar_players(table, player).head(4)
     destinos = fit.teams_for_player(table, events, player)
     destinos = destinos[~destinos["propio"]].head(5)
 
@@ -184,9 +185,28 @@ def player_report_pdf(
     # posición por un lado, minutos y competición por otro
     fig.text(x_text, 0.95, linea1, fontsize=10, color=viz.INK_2, va="top")
     fig.text(x_text, 0.932, linea2, fontsize=9, color=viz.MUTED, va="top")
-    resumen_texto = narrative.player_summary(prow, pool_desc, sims)
-    if resumen_texto:
-        fig.text(x_text, 0.905, resumen_texto, fontsize=8.5, color=viz.INK_2, va="top", wrap=True)
+
+    resumen, fortalezas, debilidades = narrative.player_strengths(prow, pool_desc)
+    if resumen:
+        fig.text(x_text, 0.914, resumen, fontsize=8.5, color=viz.INK_2, va="top", wrap=True)
+
+    # fortalezas/debilidades como tabla de dos columnas (mismo patrón que
+    # "Perfiles similares"/"Mejores destinos" más abajo), no un párrafo: se
+    # lee de un vistazo. Empieza por debajo de la foto para no invadirla.
+    # Solo 1 rasgo por columna aquí (hay más sitio en la app): separar
+    # título+percentil de la definición en dos líneas evita que el
+    # percentil —lo que más importa— se pierda si la línea no cabe entera.
+    y_fd = 0.855
+    _section_heading(fig, 0.06, y_fd, "Fortalezas")
+    for titulo, definicion in fortalezas[:1]:
+        fig.text(0.06, y_fd - 0.021, titulo, fontsize=8.5, color=viz.INK_2, va="top")
+        if definicion:
+            fig.text(0.06, y_fd - 0.034, _truncate(definicion, 68), fontsize=6.5, color=viz.MUTED, va="top")
+    _section_heading(fig, 0.54, y_fd, "Por mejorar")
+    for titulo, definicion in debilidades[:1]:
+        fig.text(0.54, y_fd - 0.021, titulo, fontsize=8.5, color=viz.INK_2, va="top")
+        if definicion:
+            fig.text(0.54, y_fd - 0.034, _truncate(definicion, 68), fontsize=6.5, color=viz.MUTED, va="top")
 
     tiles = [
         ("npxG/90", f"{prow['npxg_p90']:.2f}", prow["npxg_p90_pct"]),
@@ -211,10 +231,18 @@ def player_report_pdf(
 
     y0 = 0.115
     _section_heading(fig, 0.06, y0, "Perfiles similares")
+    fig.text(
+        0.06,
+        y0 - 0.018,
+        "estilo parecido, no necesariamente el mismo nivel",
+        fontsize=6.5,
+        color=viz.MUTED,
+        va="top",
+    )
     for i, (_, s) in enumerate(sims.iterrows()):
         fig.text(
             0.06,
-            y0 - 0.021 - 0.016 * i,
+            y0 - 0.033 - 0.016 * i,
             _truncate(f"{s['similarity']:.3f}   {s['player']}  ({s['team']}, {s['primary_position']})"),
             fontsize=8.5,
             color=viz.INK_2,

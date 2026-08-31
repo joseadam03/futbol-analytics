@@ -53,11 +53,27 @@ with tab_radar:
         ac.fig_and_download(viz.radar_chart(prow, comp_label, display, ctx["pool_label"]), "radar.png")
     with right:
         st.markdown("#### Lectura")
-        resumen_texto = narrative.player_summary(
-            prow, ctx["pool_label"], similarity.similar_players(table, player)
-        )
-        if resumen_texto:
-            st.markdown(resumen_texto)
+        resumen, fortalezas, debilidades = narrative.player_strengths(prow, ctx["pool_label"])
+        if resumen:
+            st.markdown(resumen)
+        if fortalezas or debilidades:
+
+            def _lista(rasgos: list[tuple[str, str]]) -> str:
+                return "\n".join(
+                    f"- **{titulo}**" + (f" — {definicion}" if definicion else "")
+                    for titulo, definicion in rasgos
+                )
+
+            c_fort, c_flojo = st.columns(2)
+            with c_fort:
+                st.markdown("**Fortalezas**")
+                st.markdown(_lista(fortalezas))
+            with c_flojo:
+                st.markdown("**Por mejorar**")
+                st.markdown(_lista(debilidades))
+        similar_texto = narrative.similar_players_note(similarity.similar_players(table, player))
+        if similar_texto:
+            st.caption(similar_texto)
         st.markdown(
             f"Cada eje es el **percentil per-90 del jugador frente a los {ctx['pool_label']} "
             f"de la competición** con al menos {ctx['min_minutes']:.0f} minutos. "

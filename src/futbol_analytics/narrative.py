@@ -49,18 +49,19 @@ def _band(pct: float) -> str:
     return _BANDS[-1][1]
 
 
-def _con_definicion(label: str, col: str) -> str:
-    definicion = _METRIC_DEFS.get(col)
-    return f"{label} ({definicion})" if definicion else label
+Rasgo = tuple[str, str]  # (título con percentil, definición en lenguaje llano)
 
 
-def player_summary(prow: pd.Series, pool_desc: str, similar: pd.DataFrame | None = None) -> str:
-    """Perfil en lenguaje llano: nivel general, sus 2 rasgos más fuertes, el más flojo y a quién
-    se parece — cada métrica con una definición corta, para que se entienda sin conocer la jerga.
+def player_strengths(prow: pd.Series, pool_desc: str) -> tuple[str, list[Rasgo], list[Rasgo]]:
+    """Nivel general en una frase, y sus rasgos en formato fortalezas/debilidades (no prosa):
+    más escaneable para alguien que solo quiere ver de un vistazo en qué destaca y en qué no.
 
-    `pool_desc` es el grupo/rol contra el que se comparan los percentiles (mismo texto que ya
-    usa el resto del informe). `similar`, si se pasa, es el resultado de
-    `similarity.similar_players` (se usan sus 2 primeras filas).
+    Cada rasgo se devuelve como (título, definición) por separado — no como una sola línea —
+    para que quien lo muestre pueda ponerlos en líneas distintas sin que el percentil (el dato
+    que más importa) se pierda si la línea completa no cabe en el ancho disponible. `pool_desc`
+    es el grupo/rol contra el que se comparan los percentiles (mismo texto que ya usa el resto
+    del informe). Devuelve (resumen, fortalezas, debilidades); las listas pueden salir vacías
+    si no hay métricas disponibles, pero el resumen sí lo estará en ese caso.
     """
     group = prow.get("position_group")
     metrics = viz.RADAR_METRICS.get(group, viz.RADAR_METRICS["MF"])
@@ -70,26 +71,32 @@ def player_summary(prow: pd.Series, pool_desc: str, similar: pd.DataFrame | None
         if col in prow.index and pd.notna(prow[col])
     ]
     if not valores:
-        return ""
+        return "", [], []
 
     valores.sort(key=lambda t: t[2], reverse=True)
     media = sum(pct for _, _, pct in valores) / len(valores)
+    resumen = f"Perfil {_band(media)} entre {pool_desc} (percentil medio {media:.0f} en sus métricas clave)."
 
-    frases = [f"Perfil {_band(media)} entre {pool_desc} (percentil medio {media:.0f} en sus métricas clave)."]
+    def _rasgo(item: tuple[str, str, float]) -> Rasgo:
+        col, label, pct = item
+        return (f"{label} — percentil {pct:.0f}", _METRIC_DEFS.get(col, ""))
 
-    top = valores[: min(2, len(valores))]
-    destacados = [f"{_con_definicion(label, col)}: percentil {pct:.0f}" for col, label, pct in top]
-    frases.append("Destaca sobre todo en " + " y en ".join(destacados) + ".")
+    fortalezas = [_rasgo(v) for v in valores[: min(2, len(valores))]]
 
-    col_p, label_p, pct_p = valores[-1]
-    if label_p not in {label for _, label, _ in top} and (top[0][2] - pct_p) >= 20:
-        frases.append(f"Su faceta más floja es {_con_definicion(label_p, col_p)}, con percentil {pct_p:.0f}.")
+    # solo cuenta como debilidad real (percentil ≤40); si nada llega tan bajo,
+    # se muestra igualmente la más floja para no dejar la columna vacía
+    flojas = [v for v in reversed(valores) if v[2] <= 40][:2] or [valores[-1]]
+    debilidades = [_rasgo(v) for v in flojas]
 
-    if similar is not None and not similar.empty:
-        nombres = " y ".join(str(n) for n in similar["player"].head(2))
-        frases.append(
-            f"Juega de forma parecida a {nombres} — mismo tipo de perfil dentro de la "
-            "competición, no necesariamente el mismo nivel."
-        )
+    return resumen, fortalezas, debilidades
 
-    return " ".join(frases)
+
+def similar_players_note(similar: pd.DataFrame | None) -> str:
+    """Frase sobre a qué jugadores se parece, dejando claro que es de estilo, no de nivel."""
+    if similar is None or similar.empty:
+        return ""
+    nombres = " y ".join(str(n) for n in similar["player"].head(2))
+    return (
+        f"Juega de forma parecida a {nombres} — mismo tipo de perfil dentro de la "
+        "competición, no necesariamente el mismo nivel."
+    )
