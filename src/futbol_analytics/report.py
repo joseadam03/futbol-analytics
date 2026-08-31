@@ -225,11 +225,20 @@ def player_report_pdf(
     # columna, sin que la última línea de texto casi toque las tarjetas
     _stat_tiles(fig, y_top=0.775, height=0.05, stats=tiles)
 
+    # vocabulario de scouting: radar+tiros son las métricas de rendimiento
+    # (técnico), mapa de calor+pases son de dónde y cómo se mueve el balón
+    # (táctico) — mismos gráficos de siempre, solo con la etiqueta que un
+    # analista esperaría ver. Cada fila se encoge un poco (0.275→0.24) para
+    # dejarle sitio real a su cabecera, con el mismo margen de ~12-16pt
+    # verificado en el ajuste anterior — no a ojo.
+    _section_heading(fig, 0.06, 0.71, "Análisis técnico")
+    _section_heading(fig, 0.06, 0.425, "Análisis táctico")
+
     posiciones = [  # (izquierda, abajo, ancho, alto) en fracción de página
-        (0.035, 0.45, 0.46, 0.275),
-        (0.515, 0.45, 0.46, 0.275),
-        (0.035, 0.135, 0.46, 0.275),
-        (0.515, 0.135, 0.46, 0.275),
+        (0.035, 0.44, 0.46, 0.24),
+        (0.515, 0.44, 0.46, 0.24),
+        (0.035, 0.15, 0.46, 0.24),
+        (0.515, 0.15, 0.46, 0.24),
     ]
     for buf, pos in zip(paneles, posiciones):
         ax = fig.add_axes(pos)
