@@ -193,20 +193,23 @@ def player_report_pdf(
     # fortalezas/debilidades como tabla de dos columnas (mismo patrón que
     # "Perfiles similares"/"Mejores destinos" más abajo), no un párrafo: se
     # lee de un vistazo. Empieza por debajo de la foto para no invadirla.
-    # Solo 1 rasgo por columna aquí (hay más sitio en la app): separar
-    # título+percentil de la definición en dos líneas evita que el
-    # percentil —lo que más importa— se pierda si la línea no cabe entera.
-    y_fd = 0.855
-    _section_heading(fig, 0.06, y_fd, "Fortalezas")
-    for titulo, definicion in fortalezas[:1]:
-        fig.text(0.06, y_fd - 0.021, titulo, fontsize=8.5, color=viz.INK_2, va="top")
-        if definicion:
-            fig.text(0.06, y_fd - 0.034, _truncate(definicion, 68), fontsize=6.5, color=viz.MUTED, va="top")
-    _section_heading(fig, 0.54, y_fd, "Por mejorar")
-    for titulo, definicion in debilidades[:1]:
-        fig.text(0.54, y_fd - 0.021, titulo, fontsize=8.5, color=viz.INK_2, va="top")
-        if definicion:
-            fig.text(0.54, y_fd - 0.034, _truncate(definicion, 68), fontsize=6.5, color=viz.MUTED, va="top")
+    # 2 rasgos por columna: título+percentil y definición en líneas propias,
+    # así el percentil —lo que más importa— no se pierde si la línea no
+    # cabe entera. y_fd sube desde 0.855 para aprovechar el hueco que deja
+    # el resumen de arriba y así caber los 4 rasgos sin tocar las tarjetas.
+    y_fd = 0.875
+    paso = 0.033
+
+    def _rasgos(x: float, titulo_seccion: str, rasgos: list[tuple[str, str]]) -> None:
+        _section_heading(fig, x, y_fd, titulo_seccion)
+        for i, (titulo, definicion) in enumerate(rasgos[:2]):
+            y_t = y_fd - 0.021 - i * paso
+            fig.text(x, y_t, titulo, fontsize=8.5, color=viz.INK_2, va="top")
+            if definicion:
+                fig.text(x, y_t - 0.013, _truncate(definicion, 68), fontsize=6.5, color=viz.MUTED, va="top")
+
+    _rasgos(0.06, "Fortalezas", fortalezas)
+    _rasgos(0.54, "Por mejorar", debilidades)
 
     tiles = [
         ("npxG/90", f"{prow['npxg_p90']:.2f}", prow["npxg_p90_pct"]),
