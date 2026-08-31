@@ -13,9 +13,12 @@ import io
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 import pandas as pd
+from matplotlib.patches import Rectangle
 from PIL import Image
 
 from . import fit, photos, similarity, viz
+
+WHITE = "#ffffff"
 
 
 def _fig_png(fig, dpi: int = 150) -> io.BytesIO:
@@ -26,25 +29,47 @@ def _fig_png(fig, dpi: int = 150) -> io.BytesIO:
     return buf
 
 
-def _embed_photo(fig, url: str | None, pos: tuple[float, float, float, float]) -> None:
+def _embed_photo(fig, url: str | None, pos: tuple[float, float, float, float]) -> bool:
     """Incrusta la foto del jugador si hay URL y se puede descargar; si no, no dibuja nada.
 
     Un PDF sin foto sigue siendo válido: es mejor un hueco en blanco que
     reventar el informe por una foto caída o un formato que PIL no reconozca.
+    Devuelve si se dibujó, para que el llamante decida si reservar sitio
+    para ella o cerrar el hueco.
     """
     if not url:
-        return
+        return False
     data = photos.fetch_bytes(url)
     if not data:
-        return
+        return False
     try:
         img = Image.open(io.BytesIO(data))
         img.load()
     except Exception:
-        return
+        return False
     ax = fig.add_axes(pos)
     ax.imshow(img)
     ax.axis("off")
+    return True
+
+
+def _header_band(fig, title: str, height: float = 0.06) -> None:
+    """Franja de color a todo lo ancho con el nombre en blanco, como cabecera del documento."""
+    ax = fig.add_axes((0, 1 - height, 1, height))
+    ax.set_facecolor(viz.BLUE)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+    ax.text(
+        0.045, 0.5, title, fontsize=21, fontweight="bold", color=WHITE, va="center", transform=ax.transAxes
+    )
+
+
+def _section_heading(fig, x: float, y: float, text: str) -> None:
+    """Título de sección con una marca de color a la izquierda, no solo negrita suelta."""
+    fig.add_artist(Rectangle((x, y - 0.009), 0.008, 0.015, transform=fig.transFigure, color=viz.BLUE, lw=0))
+    fig.text(x + 0.016, y, text, fontsize=11, fontweight="bold", color=viz.INK, va="top")
 
 
 def player_report_pdf(
@@ -90,19 +115,20 @@ def player_report_pdf(
         )
         if v
     )
-    _embed_photo(fig, photo_url, (0.06, 0.905, 0.15, 0.07))
+    _header_band(fig, display, height=0.035)
+    foto_ok = _embed_photo(fig, photo_url, (0.06, 0.9, 0.15, 0.065))
+    x_text = 0.24 if foto_ok else 0.06
 
-    fig.text(0.24, 0.978, display, fontsize=20, fontweight="bold", color=viz.INK, va="top")
-    fig.text(0.24, 0.95, subtitulo, fontsize=10, color=viz.INK_2, va="top")
+    fig.text(x_text, 0.95, subtitulo, fontsize=10, color=viz.INK_2, va="top")
     resumen = (
         f"npxG/90 {prow['npxg_p90']:.2f} (p{prow['npxg_p90_pct']:.0f})    "
         f"xA/90 {prow['xa_p90']:.2f} (p{prow['xa_p90_pct']:.0f})    "
         f"Pases prog./90 {prow['prog_passes_p90']:.1f} (p{prow['prog_passes_p90_pct']:.0f})    "
         f"Presiones/90 {prow['pressures_p90']:.1f} (p{prow['pressures_p90_pct']:.0f})"
     )
-    fig.text(0.24, 0.931, resumen, fontsize=9, color=viz.INK, va="top")
+    fig.text(x_text, 0.931, resumen, fontsize=9, color=viz.INK, va="top")
     fig.text(
-        0.24,
+        x_text,
         0.915,
         "npxG = goles esperados sin penaltis · xA = asistencia esperada del pase previo al tiro · "
         "pases prog. = avanzan ≥25% hacia la portería rival · presiones = acciones para forzar la "
@@ -125,7 +151,7 @@ def player_report_pdf(
         ax.axis("off")
 
     y0 = 0.15
-    fig.text(0.06, y0, "Perfiles similares", fontsize=11, fontweight="bold", color=viz.INK, va="top")
+    _section_heading(fig, 0.06, y0, "Perfiles similares")
     for i, (_, s) in enumerate(sims.iterrows()):
         fig.text(
             0.06,
@@ -136,7 +162,7 @@ def player_report_pdf(
             va="top",
         )
 
-    fig.text(0.54, y0, "Mejores destinos (encaje)", fontsize=11, fontweight="bold", color=viz.INK, va="top")
+    _section_heading(fig, 0.54, y0, "Mejores destinos (encaje)")
     for i, (_, d) in enumerate(destinos.iterrows()):
         fig.text(
             0.54,
@@ -168,35 +194,47 @@ def ficha_report_pdf(ficha: dict | None, ficha_sm: dict | None, query: str) -> b
     biografía de TheSportsDB y las estadísticas de temporada de Sportmonks
     (si hay token) ya bastan para una ficha presentable. `ficha` y
     `ficha_sm` pueden venir ambas a None si ningún servicio tuvo datos;
-    el PDF se genera igual, dejándolo dicho.
+    el PDF se genera igual, dejándolo dicho. El layout es secuencial (cada
+    bloque calcula dónde empieza el siguiente): una sección ausente (sin
+    biografía, por ejemplo) no deja un hueco en blanco reservado para ella.
     """
     viz.use_theme("light")
-    nombre = (ficha or {}).get("nombre") or (ficha_sm or {}).get("nombre") or query
+    candidatos_nombre = [
+        n
+        for n in ((ficha or {}).get("nombre"), (ficha_sm or {}).get("nombre"), query)
+        if isinstance(n, str) and n.strip()
+    ]
+    # el nombre más largo suele ser el más completo (p. ej. la búsqueda del
+    # usuario "Franculino Djú" frente a un display_name corto de la API)
+    nombre = max(candidatos_nombre, key=len) if candidatos_nombre else query
     foto_url = (ficha or {}).get("foto") or (ficha_sm or {}).get("foto")
 
     fig = plt.figure(figsize=(8.27, 11.69))  # A4 vertical
     fig.set_facecolor(viz.SURFACE)
 
-    _embed_photo(fig, foto_url, (0.06, 0.86, 0.18, 0.11))
+    _header_band(fig, nombre, height=0.075)
+    foto_ok = _embed_photo(fig, foto_url, (0.06, 0.815, 0.16, 0.1))
+    x_text = 0.26 if foto_ok else 0.06
 
-    # Layout de posiciones fijas (no calculadas a partir de la longitud del
-    # texto): así la tabla de abajo nunca se solapa con una biografía larga.
-    fig.text(0.28, 0.955, nombre, fontsize=22, fontweight="bold", color=viz.INK, va="top")
+    y = 0.895
     if ficha:
         subtitulo = " · ".join(
             str(v) for v in (ficha.get("equipo"), ficha.get("posicion"), ficha.get("nacionalidad")) if v
         )
         if subtitulo:
-            fig.text(0.28, 0.91, subtitulo, fontsize=12, color=viz.INK_2, va="top")
+            fig.text(x_text, y, subtitulo, fontsize=12, color=viz.INK_2, va="top")
+            y -= 0.03
         detalles = " · ".join(
             str(v) for v in (ficha.get("nacimiento"), ficha.get("lugar_nacimiento"), ficha.get("altura")) if v
         )
         if detalles:
-            fig.text(0.28, 0.88, detalles, fontsize=10, color=viz.MUTED, va="top")
+            fig.text(x_text, y, detalles, fontsize=10, color=viz.MUTED, va="top")
+            y -= 0.03
 
+    y = min(y, 0.8) - 0.02  # bajo la foto y el texto de cabecera, sea cual sea su alto real
     fig.text(
         0.06,
-        0.83,
+        y,
         "Ficha de scouting compuesta a partir de fuentes públicas (biografía de TheSportsDB, "
         "estadísticas de temporada de Sportmonks). Al no ser un jugador de los open data "
         "cargados en la app, no hay eventos con coordenadas de jugada: sin ellos no se puede "
@@ -206,35 +244,28 @@ def ficha_report_pdf(ficha: dict | None, ficha_sm: dict | None, query: str) -> b
         va="top",
         wrap=True,
     )
+    y -= 0.07
 
-    if ficha and ficha.get("descripcion"):
-        fig.text(
-            0.06,
-            0.78,
-            "Biografía (TheSportsDB, en inglés)",
-            fontsize=11,
-            fontweight="bold",
-            color=viz.INK,
-            va="top",
-        )
-        texto = ficha["descripcion"]
-        texto = texto[:700] + ("…" if len(texto) > 700 else "")
-        fig.text(0.06, 0.755, texto, fontsize=8.5, color=viz.INK_2, va="top", wrap=True, ha="left")
+    descripcion = (ficha or {}).get("descripcion")
+    if descripcion:
+        _section_heading(fig, 0.06, y, "Biografía (TheSportsDB, en inglés)")
+        y -= 0.03
+        texto = descripcion[:700] + ("…" if len(descripcion) > 700 else "")
+        fig.text(0.06, y, texto, fontsize=8.5, color=viz.INK_2, va="top", wrap=True, ha="left")
+        # ~95 caracteres por línea envuelta a este ancho y tamaño; estimación
+        # generosa para dejar sitio de sobra sin reservar el máximo siempre.
+        lineas = -(-len(texto) // 95)  # división entera hacia arriba
+        y -= lineas * 0.0145 + 0.025
+    # sin biografía, lo de abajo sube directamente: nada de hueco reservado
+    # para una sección que la fuente no tenía.
 
     temporadas = (ficha_sm or {}).get("temporadas") or []
     if temporadas:
+        _section_heading(fig, 0.06, y, "Estadísticas de temporada (Sportmonks)")
+        y -= 0.028
         fig.text(
             0.06,
-            0.48,
-            "Estadísticas de temporada (Sportmonks)",
-            fontsize=11,
-            fontweight="bold",
-            color=viz.INK,
-            va="top",
-        )
-        fig.text(
-            0.06,
-            0.458,
+            y,
             "Totales por club y temporada. Apariciones = partidos jugados (titular o suplente); "
             "titularidades = partidos de inicio; goles encajados y porterías a cero solo aplican "
             "a porteros.",
@@ -243,6 +274,7 @@ def ficha_report_pdf(ficha: dict | None, ficha_sm: dict | None, query: str) -> b
             va="top",
             wrap=True,
         )
+        y -= 0.05
         from . import sportmonks  # import perezoso: report no depende de sportmonks en general
 
         cols = [c for c in sportmonks.STAT_MAP.values() if any(c in t for t in temporadas)]
@@ -256,24 +288,27 @@ def ficha_report_pdf(ficha: dict | None, ficha_sm: dict | None, query: str) -> b
                 fila.append(f"{v:.0f}" if isinstance(v, (int, float)) else "—")
             table_data.append(fila)
 
-        ax = fig.add_axes((0.06, 0.13, 0.86, 0.3))
+        alto_tabla = min(0.045 * len(table_data), y - 0.08)
+        ax = fig.add_axes((0.06, y - alto_tabla, 0.88, alto_tabla))
         ax.axis("off")
         tbl = ax.table(cellText=table_data, loc="center", cellLoc="center")
         tbl.auto_set_font_size(False)
         tbl.set_fontsize(8)
-        tbl.scale(1, 1.5)
+        tbl.auto_set_column_width(col=list(range(len(header))))
+        tbl.scale(1, 1.6)
+        header_fill = "#e4eefb"  # tinte claro de viz.BLUE: cabecera de tabla distinguible
         for (row, _col), cell in tbl.get_celld().items():
             cell.set_edgecolor(viz.GRID)
             if row == 0:
-                cell.set_facecolor(viz.SURFACE)
-                cell.set_text_props(fontweight="bold", color=viz.INK)
+                cell.set_facecolor(header_fill)
+                cell.set_text_props(fontweight="bold", color=viz.BLUE)
             else:
                 cell.set_facecolor(viz.SURFACE)
                 cell.set_text_props(color=viz.INK_2)
     else:
         fig.text(
             0.06,
-            0.48,
+            y,
             "Sin estadísticas de temporada disponibles (falta token de Sportmonks, o el "
             "jugador no está en su cobertura).",
             fontsize=9,

@@ -107,6 +107,13 @@ def test_player_report_pdf_sin_foto_o_con_foto_rota_no_revienta(monkeypatch):
     )
     assert pdf[:5] == b"%PDF-"
 
+    # URL presente pero la descarga no trae nada (fallo transitorio, no excepción)
+    monkeypatch.setattr(report.photos, "fetch_bytes", lambda url: b"")
+    pdf = report.player_report_pdf(
+        tabla(), eventos(), "Jugadora Test", "Competición Test", photo_url="https://img/vacia.png"
+    )
+    assert pdf[:5] == b"%PDF-"
+
 
 def test_ficha_report_pdf_completa_con_foto_bio_y_temporadas(monkeypatch):
     monkeypatch.setattr(report.photos, "fetch_bytes", lambda url: _png_bytes())
@@ -135,4 +142,27 @@ def test_ficha_report_pdf_completa_con_foto_bio_y_temporadas(monkeypatch):
 
 def test_ficha_report_pdf_sin_ningun_dato_no_revienta():
     pdf = report.ficha_report_pdf(None, None, "Jugador Desconocido")
+    assert pdf[:5] == b"%PDF-"
+
+
+def test_ficha_report_pdf_sin_biografia_no_deja_hueco(monkeypatch):
+    monkeypatch.setattr(report.photos, "fetch_bytes", lambda url: _png_bytes())
+    ficha = {
+        "nombre": "Franculino Djú",
+        "equipo": "Midtjylland",
+        "posicion": "Forward",
+        "nacionalidad": "Guinea-Bissau",
+        "foto": "https://img/dju.png",
+        # sin "descripcion": el caso real de este jugador en TheSportsDB
+    }
+    ficha_sm = {"nombre": "Franculino", "temporadas": [{"season_name": "2025/2026", "goals": 17.0}]}
+    pdf = report.ficha_report_pdf(ficha, ficha_sm, "Franculino Djú")
+    assert pdf[:5] == b"%PDF-"
+
+
+def test_ficha_report_pdf_prefiere_el_nombre_mas_completo():
+    # el display_name corto de una API no debe ganarle al nombre completo
+    # que el usuario ya escribió en la búsqueda
+    ficha_sm = {"nombre": "Franculino", "temporadas": []}
+    pdf = report.ficha_report_pdf(None, ficha_sm, "Franculino Djú")
     assert pdf[:5] == b"%PDF-"
