@@ -65,3 +65,15 @@ def test_grupo_sin_metricas_conocidas_cae_a_mf():
 def test_sin_ninguna_columna_de_percentil_devuelve_vacio():
     prow = pd.Series({"position_group": "FW"})
     assert narrative.player_summary(prow, "delanteros") == ""
+
+
+def test_incluye_una_definicion_en_lenguaje_llano_de_la_metrica_destacada():
+    # sin esto, alguien que no conoce la jerga no sabe qué es "Regates"
+    texto = narrative.player_summary(_prow(), "delanteros")
+    assert "1 contra 1" in texto  # definición de Regates
+
+
+def test_incluye_un_percentil_medio_como_resumen_general():
+    texto = narrative.player_summary(_prow(), "delanteros")
+    assert "percentil medio" in texto
+    assert texto.startswith("Perfil ")

@@ -177,25 +177,27 @@ def player_report_pdf(
         ("Pases prog./90", f"{prow['prog_passes_p90']:.1f}", prow["prog_passes_p90_pct"]),
         ("Presiones/90", f"{prow['pressures_p90']:.1f}", prow["pressures_p90_pct"]),
     ]
-    _stat_tiles(fig, y_top=0.86, height=0.055, stats=tiles)
+    # la narrativa ahora ocupa varias líneas (explica cada métrica, no solo la
+    # nombra): las tarjetas y los paneles bajan para dejarle sitio
+    _stat_tiles(fig, y_top=0.815, height=0.05, stats=tiles)
 
     posiciones = [  # (izquierda, abajo, ancho, alto) en fracción de página
-        (0.035, 0.485, 0.46, 0.32),
-        (0.515, 0.485, 0.46, 0.32),
-        (0.035, 0.145, 0.46, 0.32),
-        (0.515, 0.145, 0.46, 0.32),
+        (0.035, 0.46, 0.46, 0.3),
+        (0.515, 0.46, 0.46, 0.3),
+        (0.035, 0.13, 0.46, 0.3),
+        (0.515, 0.13, 0.46, 0.3),
     ]
     for buf, pos in zip(paneles, posiciones):
         ax = fig.add_axes(pos)
         ax.imshow(mpimg.imread(buf))
         ax.axis("off")
 
-    y0 = 0.125
+    y0 = 0.115
     _section_heading(fig, 0.06, y0, "Perfiles similares")
     for i, (_, s) in enumerate(sims.iterrows()):
         fig.text(
             0.06,
-            y0 - 0.021 - 0.0175 * i,
+            y0 - 0.021 - 0.016 * i,
             _truncate(f"{s['similarity']:.3f}   {s['player']}  ({s['team']}, {s['primary_position']})"),
             fontsize=8.5,
             color=viz.INK_2,
@@ -206,7 +208,7 @@ def player_report_pdf(
     for i, (_, d) in enumerate(destinos.iterrows()):
         fig.text(
             0.54,
-            y0 - 0.021 - 0.0175 * i,
+            y0 - 0.021 - 0.016 * i,
             _truncate(
                 f"{d['encaje']:.0f}   {d['team']}  (estilo {d['estilo']:+.2f}, mejora {d['mejora_puesto']:+.0f})"
             ),
