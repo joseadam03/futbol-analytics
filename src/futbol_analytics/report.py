@@ -195,18 +195,21 @@ def player_report_pdf(
     # lee de un vistazo. Empieza por debajo de la foto para no invadirla.
     # 2 rasgos por columna: título+percentil y definición en líneas propias.
     # y_fd tiene que quedar por debajo del borde inferior de la foto (0.885)
-    # para no invadirla — con foto real esto se nota enseguida, aunque en
-    # un render sin foto (p.ej. sin red) pase desapercibido.
-    y_fd = 0.872
-    paso = 0.033
+    # para no invadirla. El paso entre líneas está calculado a partir de la
+    # altura real de línea de cada fontsize (no a ojo): con foto+2 rasgos
+    # por columna, el hueco entre la cabecera y las tarjetas de stats es
+    # justo, así que las tarjetas también bajan un poco (ver más abajo) en
+    # vez de apretar el texto hasta tocarlas.
+    y_fd = 0.865
+    paso = 0.030
 
     def _rasgos(x: float, titulo_seccion: str, rasgos: list[tuple[str, str]]) -> None:
         _section_heading(fig, x, y_fd, titulo_seccion)
         for i, (titulo, definicion) in enumerate(rasgos[:2]):
-            y_t = y_fd - 0.021 - i * paso
+            y_t = y_fd - 0.022 - i * paso
             fig.text(x, y_t, titulo, fontsize=8.5, color=viz.INK_2, va="top")
             if definicion:
-                fig.text(x, y_t - 0.013, _truncate(definicion, 68), fontsize=6.5, color=viz.MUTED, va="top")
+                fig.text(x, y_t - 0.015, _truncate(definicion, 68), fontsize=6.5, color=viz.MUTED, va="top")
 
     _rasgos(0.06, "Fortalezas", fortalezas)
     _rasgos(0.54, "Por mejorar", debilidades)
@@ -217,15 +220,16 @@ def player_report_pdf(
         ("Pases prog./90", f"{prow['prog_passes_p90']:.1f}", prow["prog_passes_p90_pct"]),
         ("Presiones/90", f"{prow['pressures_p90']:.1f}", prow["pressures_p90_pct"]),
     ]
-    # la cabecera ahora tiene dos líneas de datos más la narrativa (varias
-    # líneas): las tarjetas y los paneles bajan un poco más para dejarle sitio
-    _stat_tiles(fig, y_top=0.8, height=0.05, stats=tiles)
+    # las tarjetas y los paneles bajan (y los paneles se encogen un poco)
+    # para dejarle sitio de sobra a la cabecera con foto + 2 rasgos por
+    # columna, sin que la última línea de texto casi toque las tarjetas
+    _stat_tiles(fig, y_top=0.775, height=0.05, stats=tiles)
 
     posiciones = [  # (izquierda, abajo, ancho, alto) en fracción de página
-        (0.035, 0.46, 0.46, 0.29),
-        (0.515, 0.46, 0.46, 0.29),
-        (0.035, 0.13, 0.46, 0.29),
-        (0.515, 0.13, 0.46, 0.29),
+        (0.035, 0.45, 0.46, 0.275),
+        (0.515, 0.45, 0.46, 0.275),
+        (0.035, 0.135, 0.46, 0.275),
+        (0.515, 0.135, 0.46, 0.275),
     ]
     for buf, pos in zip(paneles, posiciones):
         ax = fig.add_axes(pos)
