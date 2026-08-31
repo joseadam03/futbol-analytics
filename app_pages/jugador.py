@@ -3,7 +3,7 @@
 import streamlit as st
 
 import app_common as ac
-from futbol_analytics import similarity, viz
+from futbol_analytics import narrative, similarity, viz
 
 ctx = st.session_state["ctx"]
 table, events = ctx["table"], ctx["events"]
@@ -53,6 +53,11 @@ with tab_radar:
         ac.fig_and_download(viz.radar_chart(prow, comp_label, display, ctx["pool_label"]), "radar.png")
     with right:
         st.markdown("#### Lectura")
+        resumen_texto = narrative.player_summary(
+            prow, ctx["pool_label"], similarity.similar_players(table, player)
+        )
+        if resumen_texto:
+            st.markdown(resumen_texto)
         st.markdown(
             f"Cada eje es el **percentil per-90 del jugador frente a los {ctx['pool_label']} "
             f"de la competición** con al menos {ctx['min_minutes']:.0f} minutos. "

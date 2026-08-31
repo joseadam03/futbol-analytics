@@ -18,7 +18,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from futbol_analytics import metrics, report, similarity, viz
+from futbol_analytics import metrics, photos, report, similarity, viz
 from futbol_analytics.providers import get_provider
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -77,6 +77,8 @@ def main() -> None:
 
     player = find_player(table["player"].tolist(), args.player)
     prow = table[table["player"] == player].iloc[0]
+    apodo = prow.get("nickname")
+    display = apodo if isinstance(apodo, str) and apodo else player
 
     out_dir = ROOT / "output" / slugify(player)
     print(f"\nJugador: {player} ({prow['team']}, {prow['primary_position']}, {prow['minutes']:.0f} min)")
@@ -91,7 +93,9 @@ def main() -> None:
     sims.to_csv(out_dir / "similares.csv", index=False)
     table.to_csv(ROOT / "output" / "metricas_competicion.csv", index=False)
 
-    (out_dir / "informe.pdf").write_bytes(report.player_report_pdf(table, events, player, comp_label))
+    foto_url = photos.photo_url(display)
+    pdf = report.player_report_pdf(table, events, player, comp_label, display=display, photo_url=foto_url)
+    (out_dir / "informe.pdf").write_bytes(pdf)
     print("Informe-CV de una página: informe.pdf")
 
     resumen = [

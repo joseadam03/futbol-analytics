@@ -16,7 +16,7 @@ import pandas as pd
 from matplotlib.patches import Rectangle
 from PIL import Image
 
-from . import fit, photos, similarity, viz
+from . import fit, narrative, photos, similarity, viz
 
 WHITE = "#ffffff"
 
@@ -48,7 +48,10 @@ def _embed_photo(fig, url: str | None, pos: tuple[float, float, float, float]) -
     except Exception:
         return False
     ax = fig.add_axes(pos)
-    ax.imshow(img)
+    # lanczos suaviza el escalado de fotos pequeñas (avatares de TheSportsDB/
+    # Sportmonks); no añade detalle que no había, pero evita el aspecto
+    # "pixelado" del muestreo por vecino más cercano que usa matplotlib por defecto.
+    ax.imshow(img, interpolation="lanczos")
     ax.axis("off")
     return True
 
@@ -70,6 +73,37 @@ def _section_heading(fig, x: float, y: float, text: str) -> None:
     """Título de sección con una marca de color a la izquierda, no solo negrita suelta."""
     fig.add_artist(Rectangle((x, y - 0.009), 0.008, 0.015, transform=fig.transFigure, color=viz.BLUE, lw=0))
     fig.text(x + 0.016, y, text, fontsize=11, fontweight="bold", color=viz.INK, va="top")
+
+
+def _stat_tiles(fig, y_top: float, height: float, stats: list[tuple[str, str, float]]) -> None:
+    """Fila de tarjetas con tinte de color: valor grande + etiqueta + percentil.
+
+    `stats` es una lista de (etiqueta, valor_formateado, percentil). Sustituye
+    la antigua línea de texto plano "npxG/90 0.36 (p88)  xA/90 ..." por algo
+    con estructura visual, no todo apretado en una frase.
+    """
+    tile_fill = "#eaf1fc"  # tinte claro de viz.BLUE, consistente con la cabecera de tabla
+    n = len(stats)
+    gap = 0.015
+    width = (0.92 - gap * (n - 1)) / n
+    for i, (label, valor, pct) in enumerate(stats):
+        x = 0.06 + i * (width + gap)
+        ax = fig.add_axes((x, y_top - height, width, height))
+        ax.set_facecolor(tile_fill)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+        ax.text(0.5, 0.68, valor, fontsize=15, fontweight="bold", color=viz.BLUE, ha="center", va="center")
+        ax.text(
+            0.5,
+            0.28,
+            f"{label} · p{pct:.0f}",
+            fontsize=7.5,
+            color=viz.INK_2,
+            ha="center",
+            va="center",
+        )
 
 
 def _truncate(text: str, maxlen: int = 56) -> str:
@@ -126,41 +160,36 @@ def player_report_pdf(
         if v
     )
     _header_band(fig, display, height=0.035)
-    foto_ok = _embed_photo(fig, photo_url, (0.06, 0.9, 0.15, 0.065))
-    x_text = 0.24 if foto_ok else 0.06
+    # aspecto casi cuadrado (no la franja ancha de antes): menos estiramiento
+    # al escalar avatares pequeños, que es lo que más se nota como "borroso"
+    foto_ok = _embed_photo(fig, photo_url, (0.06, 0.865, 0.14, 0.095))
+    x_text = 0.23 if foto_ok else 0.06
 
     fig.text(x_text, 0.95, subtitulo, fontsize=10, color=viz.INK_2, va="top")
-    resumen = (
-        f"npxG/90 {prow['npxg_p90']:.2f} (p{prow['npxg_p90_pct']:.0f})    "
-        f"xA/90 {prow['xa_p90']:.2f} (p{prow['xa_p90_pct']:.0f})    "
-        f"Pases prog./90 {prow['prog_passes_p90']:.1f} (p{prow['prog_passes_p90_pct']:.0f})    "
-        f"Presiones/90 {prow['pressures_p90']:.1f} (p{prow['pressures_p90_pct']:.0f})"
-    )
-    fig.text(x_text, 0.931, resumen, fontsize=9, color=viz.INK, va="top")
-    fig.text(
-        x_text,
-        0.915,
-        "npxG = goles esperados sin penaltis · xA = asistencia esperada del pase previo al tiro · "
-        "pases prog. = avanzan ≥25% hacia la portería rival · presiones = acciones para forzar la "
-        "pérdida rival. Percentil entre paréntesis, frente a otros " + pool_desc + ".",
-        fontsize=6.5,
-        color=viz.MUTED,
-        va="top",
-        wrap=True,
-    )
+    resumen_texto = narrative.player_summary(prow, pool_desc, sims)
+    if resumen_texto:
+        fig.text(x_text, 0.923, resumen_texto, fontsize=8.5, color=viz.INK_2, va="top", wrap=True)
+
+    tiles = [
+        ("npxG/90", f"{prow['npxg_p90']:.2f}", prow["npxg_p90_pct"]),
+        ("xA/90", f"{prow['xa_p90']:.2f}", prow["xa_p90_pct"]),
+        ("Pases prog./90", f"{prow['prog_passes_p90']:.1f}", prow["prog_passes_p90_pct"]),
+        ("Presiones/90", f"{prow['pressures_p90']:.1f}", prow["pressures_p90_pct"]),
+    ]
+    _stat_tiles(fig, y_top=0.86, height=0.055, stats=tiles)
 
     posiciones = [  # (izquierda, abajo, ancho, alto) en fracción de página
-        (0.035, 0.545, 0.46, 0.355),
-        (0.515, 0.545, 0.46, 0.355),
-        (0.035, 0.175, 0.46, 0.35),
-        (0.515, 0.175, 0.46, 0.35),
+        (0.035, 0.485, 0.46, 0.32),
+        (0.515, 0.485, 0.46, 0.32),
+        (0.035, 0.145, 0.46, 0.32),
+        (0.515, 0.145, 0.46, 0.32),
     ]
     for buf, pos in zip(paneles, posiciones):
         ax = fig.add_axes(pos)
         ax.imshow(mpimg.imread(buf))
         ax.axis("off")
 
-    y0 = 0.15
+    y0 = 0.125
     _section_heading(fig, 0.06, y0, "Perfiles similares")
     for i, (_, s) in enumerate(sims.iterrows()):
         fig.text(
