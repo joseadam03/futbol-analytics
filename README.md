@@ -2,8 +2,6 @@
 
 [![CI](https://github.com/joseadam03/futbol-analytics/actions/workflows/ci.yml/badge.svg)](https://github.com/joseadam03/futbol-analytics/actions/workflows/ci.yml)
 
-**[▶ Probar la app en vivo](https://futbol-analytics.streamlit.app/)** — sin instalar nada.
-
 Cojo los datos de eventos abiertos de un Mundial o una Euro y le pregunto al
 dato lo que un ojeador pregunta de memoria: ¿a qué se parece este jugador?,
 ¿en qué equipo rendiría mejor?, ¿es su volumen de tiros suerte o es de
