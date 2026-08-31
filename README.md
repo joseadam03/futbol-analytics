@@ -33,8 +33,9 @@ Multipágina, con navegación propia:
 - **Buscador** — localiza a cualquier jugador: si está en la competición cargada
   salta a su informe completo; si no está en los open data, muestra su ficha
   informativa vía TheSportsDB, sus **estadísticas de temporada reales** vía
-  Sportmonks (goles, asistencias, minutos, apariciones — con token configurado)
-  y enlaces para seguir el scouting fuera.
+  Sportmonks (goles, asistencias, minutos, apariciones — con token configurado),
+  botón para descargar esa ficha como **informe-CV en PDF** (foto, biografía y
+  estadísticas de temporada) y enlaces para seguir el scouting fuera.
 - **Jugador** — radar de percentiles per-90, mapas de campo (calor de toques,
   pases progresivos/clave, tiros con tamaño ∝ xG), perfiles similares con foto y
   botón para generar el **informe-CV en PDF de una página**.
@@ -78,7 +79,8 @@ regenera así en `make lock`) para que Cloud instale también el paquete propio,
 ya que solo ejecuta `pip install -r requirements.txt` — sin eso, la app
 reventaría al arrancar por no encontrar `futbol_analytics`. En *Advanced
 settings* puedes fijar la versión de Python (3.11 o 3.12) y, si vas a activar
-Wyscout, añadir `WYSCOUT_CLIENT_ID` / `WYSCOUT_CLIENT_SECRET` en *Secrets*.
+Wyscout, añadir `WYSCOUT_CLIENT_ID` / `WYSCOUT_CLIENT_SECRET` en *Secrets*; para
+las estadísticas de Sportmonks del Buscador, añade también `SPORTMONKS_API_TOKEN`.
 
 El primer arranque descarga y cachea la competición por defecto (varios
 minutos); como el disco de Cloud no es persistente entre reinicios del

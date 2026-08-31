@@ -120,6 +120,7 @@ else:
             "integración ya está preparada en la app)."
         )
 
+    ficha_sm = None
     if sportmonks.available():
         st.markdown("#### Estadísticas de temporada (Sportmonks)")
         st.caption(
@@ -155,6 +156,17 @@ else:
         st.caption(
             "💡 Con un token de Sportmonks (`SPORTMONKS_API_TOKEN` en `.env`) esta ficha "
             "incluiría también goles, asistencias y minutos reales por temporada."
+        )
+
+    primera_ficha = fichas[0] if fichas else None
+    if primera_ficha or ficha_sm:
+        st.download_button(
+            "⬇ Informe-CV (PDF)",
+            ac.ficha_informe_pdf(primera_ficha, ficha_sm, q),
+            file_name=f"informe_{q.replace(' ', '_')}.pdf",
+            mime="application/pdf",
+            key="dl_ficha_informe",
+            help="Bio + estadísticas de temporada. Sin eventos con coordenadas no lleva radar ni mapas.",
         )
 
 st.divider()

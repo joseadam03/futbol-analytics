@@ -143,8 +143,20 @@ def informe_pdf(
     """Informe-CV en PDF del jugador (siempre en tema claro, para imprimir)."""
     table = build_table(provider_key, competition_id, season_id, min_minutes, basis)
     events = load_events(provider_key, competition_id, season_id)
+    prow = table[table["player"] == player].iloc[0]
+    apodo = prow.get("nickname")
+    display = apodo if isinstance(apodo, str) and apodo else player
     try:
-        return report.player_report_pdf(table, events, player, comp_label)
+        return report.player_report_pdf(table, events, player, comp_label, photo_url=photo_of(display))
+    finally:
+        viz.use_theme(theme())  # el informe fuerza tema claro; restaurar el de la app
+
+
+@st.cache_data(show_spinner=False)
+def ficha_informe_pdf(ficha: dict | None, ficha_sm: dict | None, query: str) -> bytes:
+    """Informe-CV ligero (bio + estadísticas de temporada) para un jugador fuera de los open data."""
+    try:
+        return report.ficha_report_pdf(ficha, ficha_sm, query)
     finally:
         viz.use_theme(theme())  # el informe fuerza tema claro; restaurar el de la app
 

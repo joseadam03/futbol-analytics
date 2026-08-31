@@ -3,6 +3,7 @@
 import json
 
 import pytest
+import requests
 
 from futbol_analytics import photos, tsdb
 
@@ -48,3 +49,27 @@ def test_disco_de_solo_lectura_no_revienta(monkeypatch, tmp_path):
     bloqueo.write_text("no soy un directorio")
     monkeypatch.setattr(photos, "CACHE_FILE", bloqueo / "photos.json")
     assert photos.photo_url("Jugador") == "https://img/x.png"
+
+
+class FakeResponse:
+    def __init__(self, status_code=200, content=b""):
+        self.status_code = status_code
+        self.content = content
+
+
+def test_fetch_bytes_devuelve_el_contenido_si_hay_200(monkeypatch):
+    monkeypatch.setattr(requests, "get", lambda url, **kw: FakeResponse(200, b"\x89PNG..."))
+    assert photos.fetch_bytes("https://img/x.png") == b"\x89PNG..."
+
+
+def test_fetch_bytes_devuelve_none_si_falla_el_http(monkeypatch):
+    monkeypatch.setattr(requests, "get", lambda url, **kw: FakeResponse(404))
+    assert photos.fetch_bytes("https://img/no-existe.png") is None
+
+
+def test_fetch_bytes_devuelve_none_si_hay_error_de_red(monkeypatch):
+    def fake_get(url, **kw):
+        raise requests.RequestException("timeout")
+
+    monkeypatch.setattr(requests, "get", fake_get)
+    assert photos.fetch_bytes("https://img/x.png") is None

@@ -6,6 +6,7 @@ import logging
 import warnings
 
 import pandas as pd
+import requests
 from statsbombpy import sb
 
 from ..paths import CACHE_DIR
@@ -42,11 +43,19 @@ class StatsBombProvider(Provider):
         match_ids = self.matches(competition_id, season_id)["match_id"].tolist()
         frames = []
         for i, match_id in enumerate(match_ids, 1):
-            df = sb.events(match_id=match_id)
+            try:
+                df = sb.events(match_id=match_id)
+            except requests.exceptions.HTTPError as exc:
+                # hueco puntual en los open data (fichero ausente/corrupto para
+                # este partido): mejor perder un partido que tumbar la competición entera.
+                log.warning("eventos no disponibles para el partido %s: %s", match_id, exc)
+                continue
             df["match_id"] = match_id
             frames.append(df)
             log.info("eventos %d/%d (partido %s)", i, len(match_ids), match_id)
 
+        if not frames:
+            raise RuntimeError(f"ningún partido con eventos disponibles en {competition_id}/{season_id}")
         all_events = pd.concat(frames, ignore_index=True)
         cache.parent.mkdir(parents=True, exist_ok=True)
         all_events.to_pickle(cache)
@@ -70,7 +79,13 @@ class StatsBombProvider(Provider):
         match_ids = events_df["match_id"].unique().tolist()
         rows = []
         for i, match_id in enumerate(match_ids, 1):
-            lineups = sb.lineups(match_id=match_id)
+            try:
+                lineups = sb.lineups(match_id=match_id)
+            except requests.exceptions.HTTPError as exc:
+                # mismo hueco puntual que en events(): un partido sin alineación
+                # publicada no debe tumbar los minutos de toda la competición.
+                log.warning("alineación no disponible para el partido %s: %s", match_id, exc)
+                continue
             end = float(end_minute.get(match_id, 95))
             for team, lineup in lineups.items():
                 for _, p in lineup.iterrows():
@@ -95,6 +110,8 @@ class StatsBombProvider(Provider):
                     )
             log.info("alineaciones %d/%d", i, len(match_ids))
 
+        if not rows:
+            raise RuntimeError(f"ninguna alineación disponible en {competition_id}/{season_id}")
         per_match = pd.DataFrame(rows)
         out = per_match.groupby(["player", "team"], as_index=False).agg(
             nickname=("nickname", "first"),

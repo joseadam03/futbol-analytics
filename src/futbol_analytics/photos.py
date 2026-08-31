@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import json
 
+import requests
+
 from . import paths, tsdb
 
 CACHE_FILE = paths.CACHE_DIR / "photos.json"
@@ -46,3 +48,18 @@ def photo_url(name: str) -> str | None:
     cache[name] = url  # una respuesta válida sin foto sí se cachea
     _save_cache(cache)
     return url
+
+
+def fetch_bytes(url: str) -> bytes | None:
+    """Descarga los bytes de una foto para incrustarla en un PDF; None si falla.
+
+    Uso puntual (una vez por informe generado), no una vista repetida: no
+    necesita el circuito de corte de `tsdb`, basta con no reventar el PDF.
+    """
+    try:
+        resp = requests.get(url, headers=tsdb.HEADERS, timeout=tsdb.TIMEOUT)
+    except requests.RequestException:
+        return None
+    if resp.status_code != 200:
+        return None
+    return resp.content

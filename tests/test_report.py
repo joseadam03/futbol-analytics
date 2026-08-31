@@ -1,8 +1,17 @@
 """Test de humo del informe-CV en PDF, con datos sintéticos (sin red)."""
 
+import io
+
 import pandas as pd
+from PIL import Image
 
 from futbol_analytics import fit, report
+
+
+def _png_bytes() -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGB", (4, 4), color=(200, 30, 30)).save(buf, format="PNG")
+    return buf.getvalue()
 
 
 def eventos() -> pd.DataFrame:
@@ -77,3 +86,53 @@ def test_player_report_pdf_genera_un_pdf_valido():
     pdf = report.player_report_pdf(tabla(), eventos(), "Jugadora Test", "Competición Test")
     assert pdf[:5] == b"%PDF-"
     assert len(pdf) > 10_000  # contiene los cuatro paneles renderizados
+
+
+def test_player_report_pdf_incrusta_foto_si_hay_url(monkeypatch):
+    monkeypatch.setattr(report.photos, "fetch_bytes", lambda url: _png_bytes())
+    pdf = report.player_report_pdf(
+        tabla(), eventos(), "Jugadora Test", "Competición Test", photo_url="https://img/x.png"
+    )
+    assert pdf[:5] == b"%PDF-"
+
+
+def test_player_report_pdf_sin_foto_o_con_foto_rota_no_revienta(monkeypatch):
+    monkeypatch.setattr(report.photos, "fetch_bytes", lambda url: None)
+    pdf = report.player_report_pdf(tabla(), eventos(), "Jugadora Test", "Competición Test", photo_url=None)
+    assert pdf[:5] == b"%PDF-"
+
+    monkeypatch.setattr(report.photos, "fetch_bytes", lambda url: b"no es una imagen")
+    pdf = report.player_report_pdf(
+        tabla(), eventos(), "Jugadora Test", "Competición Test", photo_url="https://img/roto.png"
+    )
+    assert pdf[:5] == b"%PDF-"
+
+
+def test_ficha_report_pdf_completa_con_foto_bio_y_temporadas(monkeypatch):
+    monkeypatch.setattr(report.photos, "fetch_bytes", lambda url: _png_bytes())
+    ficha = {
+        "nombre": "Franculino Djú",
+        "equipo": "Midtjylland",
+        "posicion": "Forward",
+        "nacionalidad": "Guinea-Bissau",
+        "nacimiento": "2004-06-28",
+        "lugar_nacimiento": "Bissau",
+        "altura": "180 cm",
+        "descripcion": "Texto biográfico de prueba. " * 30,
+        "foto": "https://img/dju.png",
+    }
+    ficha_sm = {
+        "nombre": "Franculino Djú",
+        "foto": "https://img/dju_sm.png",
+        "temporadas": [
+            {"season_name": "2025/2026", "goals": 17.0, "assists": 4.0, "minutes": 1343.0},
+            {"season_name": "2024/2025", "goals": 10.0, "assists": 2.0, "minutes": 1800.0},
+        ],
+    }
+    pdf = report.ficha_report_pdf(ficha, ficha_sm, "Franculino Djú")
+    assert pdf[:5] == b"%PDF-"
+
+
+def test_ficha_report_pdf_sin_ningun_dato_no_revienta():
+    pdf = report.ficha_report_pdf(None, None, "Jugador Desconocido")
+    assert pdf[:5] == b"%PDF-"
