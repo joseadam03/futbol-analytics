@@ -17,6 +17,8 @@ tests + CI/CD como la de cualquier servicio en producción — no solo notebooks
 
 ![Captura de la página Jugador: radar de percentiles, tarjetas de estadística y lectura en texto llano](docs/screenshot.png)
 
+**[📄 Ver un informe-CV real](docs/informe_ejemplo_mbappe.pdf)** — el PDF que genera la app, sin ejecutar nada.
+
 > Proyecto de portafolio. El objetivo no es acumular gráficos, sino medir bien:
 > cada métrica está definida abajo, con sus supuestos y sus limitaciones.
 
