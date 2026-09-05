@@ -101,15 +101,25 @@ contenedor, cada redeploy repite esa espera. Si prefieres una demo instantánea
 sin depender de la red, añade `FUTBOL_ANALYTICS_FAKE = "1"` en *Secrets*: la
 app arranca al instante con la liga sintética.
 
-**Hugging Face Spaces** (gratis, SDK Docker): reutiliza el `Dockerfile` de
-este repo tal cual — no hace falta tocarlo. Streamlit Community Cloud da
-solo ~1GB de RAM compartidos entre sesiones, y esta app carga eventos de
-competiciones enteras y renderiza varios paneles a la vez; si el deploy
-gratuito te falla o se degrada con el uso, Spaces da bastante más margen. Crea
-un Space nuevo con SDK "Docker", añade `sdk: docker` y `app_port: 8501` al
-frontmatter de su README (el `Dockerfile` ya expone ese puerto) y haz push de
-este repo a su remoto git. Los secrets de Wyscout/Sportmonks se configuran
-igual, como *Repository secrets* del Space.
+**Google Cloud Run** (free tier permanente, pago por uso más allá de eso):
+Streamlit Community Cloud da solo ~1GB de RAM compartidos entre sesiones, y
+esta app carga eventos de competiciones enteras y renderiza varios paneles a
+la vez; si el deploy gratuito te falla o se degrada con el uso, Cloud Run deja
+elegir la memoria del contenedor (1-2GiB es más que suficiente) y factura por
+uso real, no por un plan fijo — para una demo con tráfico bajo se queda en
+0€. El `Dockerfile` ya respeta la variable `$PORT` que Cloud Run inyecta en
+el contenedor (por defecto 8080), así que no hace falta tocarlo:
+
+```bash
+gcloud run deploy futbol-analytics --source . --region europe-southwest1 \
+  --memory 1Gi --allow-unauthenticated
+```
+
+Los secrets de Wyscout/Sportmonks se pasan con `--set-env-vars` o, mejor, con
+*Secret Manager* (`--set-secrets`). Con `--min-instances 0` (por defecto) el
+servicio escala a cero y el primer request tras estar dormido tarda un poco
+más (cold start); con `--min-instances 1` se queda siempre despierto, a costa
+de un pequeño consumo continuo que puede salirse del free tier.
 
 También en Docker, en local o en cualquier otro proveedor que acepte una
 imagen:
