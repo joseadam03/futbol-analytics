@@ -39,6 +39,9 @@ pages = st.navigation(
         st.Page("app_pages/evolucion.py", title="Evolución", icon="📈"),
         st.Page("app_pages/modelo_xg.py", title="Modelo xG", icon="🎯"),
         st.Page("app_pages/metodologia.py", title="Metodología", icon="📖"),
-    ]
+    ],
+    # Streamlit 1.63 colapsa el menú tras 12 páginas ("View 3 more"); con 13
+    # páginas eso escondía Evolución, Modelo xG y Metodología por defecto.
+    expanded=True,
 )
 pages.run()
