@@ -10,7 +10,10 @@ las constantes de traducción de abajo, no reescribir la lógica.
 
 Para activarlo:
 1. Contratar acceso a la API (https://www.hudl.com/products/wyscout) y definir
-   `WYSCOUT_CLIENT_ID` / `WYSCOUT_CLIENT_SECRET` (autenticación básica de la v3).
+   `WYSCOUT_CLIENT_ID` / `WYSCOUT_CLIENT_SECRET` (autenticación básica de la v3),
+   o dárselas solo a un usuario del login opcional (`wyscout_client_id` /
+   `wyscout_client_secret` en su entrada de `config.yaml`; ver auth.py) para
+   no compartirlas con el resto de cuentas.
 2. Seleccionar el proveedor "Wyscout" en la barra lateral de la app.
 
 Decisiones del mapeo, para que se puedan discutir:
@@ -27,6 +30,7 @@ Decisiones del mapeo, para que se puedan discutir:
 from __future__ import annotations
 
 import os
+from contextvars import ContextVar
 
 import numpy as np
 import pandas as pd
@@ -36,6 +40,17 @@ from ..paths import CACHE_DIR
 from .base import Provider
 
 API_BASE = "https://apirest.wyscout.com/v3"
+
+# Credenciales del usuario logueado para esta sesión (ver auth.py). Un
+# ContextVar y no os.environ: streamlit sirve varias sesiones concurrentes en
+# el mismo proceso, y escribir en el entorno filtraría la clave de un usuario
+# a las peticiones de otro.
+_CREDENTIALS: ContextVar[tuple[str, str] | None] = ContextVar("wyscout_credentials", default=None)
+
+
+def set_session_credentials(client_id: str, client_secret: str) -> None:
+    _CREDENTIALS.set((client_id, client_secret))
+
 
 _MSG = (
     "El proveedor Wyscout requiere credenciales de la API de Hudl/Wyscout "
@@ -97,7 +112,7 @@ class WyscoutProvider(Provider):
     name = "Wyscout"
 
     def __init__(self) -> None:
-        self._auth = (
+        self._auth = _CREDENTIALS.get() or (
             os.environ.get("WYSCOUT_CLIENT_ID", ""),
             os.environ.get("WYSCOUT_CLIENT_SECRET", ""),
         )

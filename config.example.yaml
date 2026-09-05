@@ -8,10 +8,27 @@
 
 credentials:
   usernames:
+    # Usuario normal: entra y ve los proveedores de datos configurados
+    # globalmente (StatsBomb open data siempre; Wyscout si hay
+    # WYSCOUT_CLIENT_ID/SECRET en el entorno).
+    jose:
+      email: jose@example.com
+      name: Jose
+      password: $2b$12$REEMPLAZA.ESTE.HASH.CON.EL.QUE.GENERE.scripts/hash_password.py
+      # Opcional: sus propias claves de Wyscout, solo para su sesión — no
+      # se comparten con el resto de usuarios ni hace falta ponerlas en
+      # .env para todo el despliegue.
+      # wyscout_client_id: ...
+      # wyscout_client_secret: ...
+
+    # Usuario de solo demo: entra con la liga sintética preseleccionada,
+    # sin acceso a ninguna clave real de nadie. Útil para dar acceso a un
+    # recruiter sin exponer datos ni credenciales reales.
     recruiter:
       email: recruiter@example.com
-      name: Nombre Apellido
+      name: Recruiter Demo
       password: $2b$12$REEMPLAZA.ESTE.HASH.CON.EL.QUE.GENERE.scripts/hash_password.py
+      provider: fake
 
 cookie:
   # Nombre de la cookie de sesión (el que quieras).

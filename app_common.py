@@ -8,6 +8,7 @@ import pandas as pd
 import streamlit as st
 
 from futbol_analytics import (
+    auth,
     crests,
     metrics,
     photos,
@@ -213,10 +214,14 @@ def sidebar_context() -> dict:
     """Dibuja la barra lateral global y devuelve la selección actual."""
     viz.use_theme(theme())
 
-    providers = list_providers()
+    usuario = auth.usuario_actual()
+    forzado = usuario.get("provider") if usuario else None
+    providers = list_providers(include_fake=True if forzado == "fake" else None)
+    keys = list(providers)
     provider_key = st.sidebar.selectbox(
         "Proveedor de datos",
-        options=list(providers),
+        options=keys,
+        index=keys.index(forzado) if forzado in keys else 0,
         format_func=lambda k: providers[k].name,
         key="provider_sel",
     )
