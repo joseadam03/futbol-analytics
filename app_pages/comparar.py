@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 
 import app_common as ac
-from futbol_analytics import similarity, viz
+from futbol_analytics import narrative, similarity, viz
 
 ctx = st.session_state["ctx"]
 table = ctx["table"]
@@ -49,3 +49,8 @@ with right:
         )
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
     st.caption(f"Valores per-90 y percentil (p) de cada jugador frente a los {ctx['pool_label']}.")
+    with st.expander("Qué mide cada eje"):
+        for col, label in viz.RADAR_METRICS.get(prow["position_group"], viz.RADAR_METRICS["MF"]):
+            definicion = narrative.metric_definition(col)
+            if definicion:
+                st.markdown(f"- **{label.replace(chr(10), ' ')}** — {definicion}")

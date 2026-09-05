@@ -89,14 +89,32 @@ with tab_radar:
             "- **xA** enlaza cada pase clave con el xG del tiro que generó.\n"
             "- Penaltis excluidos de las métricas de tiro."
         )
+        with st.expander("Qué mide cada eje del radar"):
+            grupo = prow["position_group"]
+            for col, label in viz.RADAR_METRICS.get(grupo, viz.RADAR_METRICS["MF"]):
+                definicion = narrative.metric_definition(col)
+                if definicion:
+                    st.markdown(f"- **{label.replace(chr(10), ' ')}** — {definicion}")
 
 with tab_mapas:
     m1, m2 = st.columns(2)
     with m1:
         ac.fig_and_download(viz.touch_heatmap(events, player, comp_label, display), "mapa_calor.png")
+        st.caption(
+            "**Mapa de calor**: dónde toca el balón más a menudo (pases, tiros, "
+            "conducciones y controles). Más oscuro = más actividad en esa zona del campo."
+        )
         ac.fig_and_download(viz.shot_map(events, player, comp_label, display), "mapa_tiros.png")
+        st.caption(
+            "**Mapa de tiros** (sin penaltis): punto relleno = gol, hueco = no gol. "
+            "El tamaño es proporcional al **xG** de esa ocasión — más grande, ocasión más clara."
+        )
     with m2:
         ac.fig_and_download(viz.pass_map(events, player, comp_label, display), "mapa_pases.png")
+        st.caption(
+            "**Mapa de pases**: en azul, pases **progresivos** (avanzan el balón hacia la "
+            "portería rival); en naranja, pases **clave** (el que precede directamente a un tiro)."
+        )
 
 with tab_similares:
     st.markdown(
