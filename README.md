@@ -101,7 +101,31 @@ contenedor, cada redeploy repite esa espera. Si prefieres una demo instantánea
 sin depender de la red, añade `FUTBOL_ANALYTICS_FAKE = "1"` en *Secrets*: la
 app arranca al instante con la liga sintética.
 
-También en Docker:
+**VPS propio** (por ejemplo, una VM de **Oracle Cloud "Always Free"**: gratis
+de verdad, sin límite de tiempo ni facturación por uso — a diferencia de
+Streamlit Cloud, aquí la memoria la pones tú). Con Docker y git instalados:
+
+```bash
+git clone https://github.com/joseadam03/futbol-analytics.git && cd futbol-analytics
+docker build -t futbol-analytics .
+docker run -d --restart unless-stopped -p 8501:8501 \
+  -v futbol-cache:/app/data/cache \
+  --name futbol-analytics futbol-analytics
+```
+
+`--restart unless-stopped` levanta el contenedor solo tras reiniciar la VM;
+el volumen `futbol-cache` hace que la caché de competiciones sobreviva a un
+redeploy, algo que ni Streamlit Cloud ni una plataforma serverless ofrecen.
+Los secrets (Wyscout, Sportmonks) se pasan con `-e WYSCOUT_CLIENT_ID=...` en
+el mismo `docker run`. Recuerda abrir el puerto 8501 en las reglas de red de
+la VM — en Oracle Cloud, tanto en el *Security List* de la subred como en el
+firewall del propio sistema (`iptables`/`firewalld`, según la imagen del SO).
+Para una URL con HTTPS en vez de la IP a pelo, un proxy inverso como
+[Caddy](https://caddyserver.com/) delante, con un dominio propio, lo
+resuelve con un par de líneas de configuración.
+
+También en Docker, en local o en cualquier otro proveedor que acepte una
+imagen:
 
 ```bash
 docker build -t futbol-analytics .
