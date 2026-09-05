@@ -185,7 +185,7 @@ pluggy==1.6.0
     #   pytest-cov
 pre-commit==4.6.2
     # via futbol-analytics
-protobuf==7.36.0
+protobuf==7.36.1
     # via streamlit
 pyarrow==25.0.1
     # via streamlit

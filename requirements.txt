@@ -148,7 +148,7 @@ pillow==12.3.0
     #   streamlit
 platformdirs==4.11.5
     # via requests-cache
-protobuf==7.36.0
+protobuf==7.36.1
     # via streamlit
 pyarrow==25.0.1
     # via streamlit
