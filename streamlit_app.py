@@ -5,6 +5,8 @@ Ejecutar:  streamlit run streamlit_app.py
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import streamlit as st
 from dotenv import load_dotenv
 
@@ -12,7 +14,12 @@ import app_common as ac
 
 load_dotenv()  # credenciales opcionales (p. ej. Wyscout) desde .env
 
-st.set_page_config(page_title="Fútbol Analytics", page_icon="⚽", layout="wide")
+# favicon propio (balón en el azul de marca) en vez del emoji genérico del
+# navegador; si el asset no está por lo que sea, cae al emoji en vez de romper
+FAVICON = Path(__file__).parent / "docs" / "favicon.png"
+st.set_page_config(
+    page_title="Fútbol Analytics", page_icon=str(FAVICON) if FAVICON.exists() else "⚽", layout="wide"
+)
 
 st.sidebar.title("⚽ Fútbol Analytics")
 st.session_state["ctx"] = ac.sidebar_context()
