@@ -37,10 +37,7 @@ COPY .streamlit ./.streamlit
 RUN mkdir -p /app/data/cache && chown -R futbol:futbol /app/data
 
 USER futbol
-# 8501 es el puerto de Streamlit en local (docker run -p 8501:8501); Cloud Run
-# inyecta su propio $PORT en tiempo de ejecución (normalmente 8080) y CMD/
-# HEALTHCHECK lo respetan si está definido, con 8501 como valor por defecto.
 EXPOSE 8501
-HEALTHCHECK CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:${PORT:-8501}/_stcore/health')"
+HEALTHCHECK CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')"
 
-CMD streamlit run streamlit_app.py --server.address=0.0.0.0 --server.port=${PORT:-8501}
+CMD ["streamlit", "run", "streamlit_app.py", "--server.address=0.0.0.0"]
