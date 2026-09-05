@@ -30,6 +30,15 @@ El encaje final (0-100) es el percentil de la combinación ponderada
 del conjunto comparado: ordena destinos o fichajes *dentro del pool
 analizado*, no tasa mercados reales.
 
+Precisamente porque no tasa mercados reales, un jugador muy por encima del
+nivel del puesto (percentil de sobra muy alto en `mejora_puesto`) sube el
+encaje sin límite, aunque en la práctica ese fichaje sea del todo
+improbable — nadie ficha a alguien 40 puntos de percentil por encima de su
+plantilla sin que medien sueldo, ambición o nivel de competición, datos que
+no están aquí y que no se van a inventar. `etiqueta_realismo` avisa de
+esto sobre el mismo dato ya calculado, sin ocultar la fila ni tocar el
+orden: la app decide qué hacer con el aviso.
+
 Si la tabla trae una columna ``competition`` (pool multi-competición),
 los z-scores y niveles se calculan dentro de la competición de origen de
 cada jugador: comparar percentiles entre competiciones de nivel dispar
@@ -254,6 +263,22 @@ def competition_offsets(
     return pd.DataFrame(filas)
 
 
+# umbrales sobre `mejora_puesto` (puntos de percentil de sobra sobre el nivel
+# del puesto): a partir de aquí el salto de nivel es tan grande que, en la
+# práctica, es un fichaje inusual o improbable — ver docstring del módulo.
+REALISMO_MEJORA_CLARA = 25.0
+REALISMO_SOBRECUALIFICADO = 40.0
+
+
+def etiqueta_realismo(mejora_puesto: float) -> str:
+    """Traduce el salto de nivel a un aviso legible; vacío si el salto es razonable."""
+    if mejora_puesto > REALISMO_SOBRECUALIFICADO:
+        return "Sobrecualificado — fichaje improbable en la práctica"
+    if mejora_puesto > REALISMO_MEJORA_CLARA:
+        return "Mejora clara"
+    return ""
+
+
 def _combine(estilo: pd.Series, mejora: pd.Series, w_estilo: float = 0.5) -> pd.Series:
     """Encaje 0-100: percentil de la combinación ponderada de componentes estandarizados."""
     w = min(max(float(w_estilo), 0.0), 1.0)
@@ -300,6 +325,7 @@ def teams_for_player(
         )
     out = pd.DataFrame(rows)
     out["encaje"] = _combine(out["estilo"], out["mejora_puesto"], w_estilo)
+    out["realismo"] = out["mejora_puesto"].map(etiqueta_realismo)
     return out.sort_values("encaje", ascending=False).reset_index(drop=True)
 
 
@@ -361,4 +387,5 @@ def players_for_team(
         out = out[out["position_group"] == group]
     out = out.copy()
     out["encaje"] = _combine(out["estilo"], out["mejora_puesto"], w_estilo)
+    out["realismo"] = out["mejora_puesto"].map(etiqueta_realismo)
     return out.sort_values("encaje", ascending=False).reset_index(drop=True)

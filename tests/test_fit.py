@@ -157,6 +157,25 @@ def test_mejora_del_puesto_neutral_con_percentiles_iguales():
     assert destinos["mejora_puesto"].abs().max() == 0.0
 
 
+def test_etiqueta_realismo_umbrales():
+    assert fit.etiqueta_realismo(0.0) == ""
+    assert fit.etiqueta_realismo(25.0) == ""  # el umbral es estricto, no inclusive
+    assert fit.etiqueta_realismo(25.1) == "Mejora clara"
+    assert fit.etiqueta_realismo(40.0) == "Mejora clara"
+    assert fit.etiqueta_realismo(40.1) == "Sobrecualificado — fichaje improbable en la práctica"
+    assert fit.etiqueta_realismo(-30.0) == ""  # un downgrade no es "sobrecualificado"
+
+
+def test_realismo_aparece_en_destinos_y_fichajes():
+    destinos = fit.teams_for_player(tabla_fw(), eventos_dos_estilos(), "Pressy")
+    assert "realismo" in destinos.columns
+    assert (destinos["realismo"] == "").all()  # percentiles iguales: sin salto de nivel
+
+    fichajes = fit.players_for_team(tabla_fw(), eventos_dos_estilos(), "A", group="FW")
+    assert "realismo" in fichajes.columns
+    assert fichajes["realismo"].map(lambda t: t == "" or "Mejora" in t or "Sobrecualificado" in t).all()
+
+
 def test_squad_level_pondera_por_minutos():
     base = {c: 40.0 for c in fit.GROUP_KEY_PCT["FW"]}
     top = {c: 80.0 for c in fit.GROUP_KEY_PCT["FW"]}

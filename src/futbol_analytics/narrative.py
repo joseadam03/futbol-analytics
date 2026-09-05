@@ -42,6 +42,16 @@ _METRIC_DEFS = {
 }
 
 
+def metric_definition(col: str) -> str:
+    """Definición en lenguaje llano de una métrica per-90 (con o sin sufijo `_pct`).
+
+    Reutiliza el mismo diccionario que traduce el radar del informe-CV, para que
+    una métrica se explique con las mismas palabras en el PDF y en la app.
+    """
+    clave = col if col in _METRIC_DEFS else f"{col}_pct"
+    return _METRIC_DEFS.get(clave, "")
+
+
 def _band(pct: float) -> str:
     for umbral, etiqueta in _BANDS:
         if pct >= umbral:

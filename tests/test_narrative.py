@@ -89,6 +89,15 @@ def test_similar_players_note_vacio_sin_datos():
     assert narrative.similar_players_note(pd.DataFrame()) == ""
 
 
+def test_metric_definition_admite_columna_con_o_sin_sufijo_pct():
+    assert narrative.metric_definition("xa_p90") == narrative.metric_definition("xa_p90_pct")
+    assert "calidad de las ocasiones" in narrative.metric_definition("xa_p90")
+
+
+def test_metric_definition_vacia_si_no_existe():
+    assert narrative.metric_definition("columna_inventada") == ""
+
+
 def test_season_strengths_sin_minutos_devuelve_vacio():
     assert narrative.season_strengths([]) == ([], [])
     temporadas = [{"season_name": "24/25", "minutes": 0, "appearances": 5}]
