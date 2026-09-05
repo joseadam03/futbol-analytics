@@ -117,12 +117,33 @@ docker run -d --restart unless-stopped -p 8501:8501 \
 el volumen `futbol-cache` hace que la caché de competiciones sobreviva a un
 redeploy, algo que ni Streamlit Cloud ni una plataforma serverless ofrecen.
 Los secrets (Wyscout, Sportmonks) se pasan con `-e WYSCOUT_CLIENT_ID=...` en
-el mismo `docker run`. Recuerda abrir el puerto 8501 en las reglas de red de
-la VM — en Oracle Cloud, tanto en el *Security List* de la subred como en el
-firewall del propio sistema (`iptables`/`firewalld`, según la imagen del SO).
-Para una URL con HTTPS en vez de la IP a pelo, un proxy inverso como
-[Caddy](https://caddyserver.com/) delante, con un dominio propio, lo
-resuelve con un par de líneas de configuración.
+el mismo `docker run`.
+
+Con esto el contenedor ya corre, pero **no se ve desde fuera** hasta abrir el
+puerto 8501 en dos sitios distintos — falta cualquiera de los dos y no llega
+tráfico, sin ningún error visible en el contenedor:
+
+1. **Security List/NSG de la VCN** (en Oracle Cloud): por defecto solo el
+   puerto 22 (SSH) está abierto. En la consola: *Networking → Virtual Cloud
+   Networks → tu VCN → Security Lists → Add Ingress Rule* — origen
+   `0.0.0.0/0`, protocolo TCP, puerto destino `8501`.
+2. **Firewall del propio sistema operativo** dentro de la VM (esto es lo que
+   más sorprende: el paso 1 puede estar bien y seguir sin funcionar):
+
+   ```bash
+   # Oracle Linux (usa firewalld)
+   sudo firewall-cmd --permanent --add-port=8501/tcp && sudo firewall-cmd --reload
+
+   # Ubuntu (usa ufw, si está activo)
+   sudo ufw allow 8501/tcp
+   ```
+
+Verifica el acceso real desde fuera de la VM (el móvil con datos, no con el
+wifi de casa, para descartar coincidencias de red local) entrando a
+`http://IP_PUBLICA_DE_LA_VM:8501`. Al ser HTTP sin certificado, el navegador
+avisará de "no seguro" — para una URL con HTTPS y un dominio propio en vez
+de la IP a pelo, un proxy inverso como [Caddy](https://caddyserver.com/)
+delante lo resuelve con un par de líneas de configuración.
 
 También en Docker, en local o en cualquier otro proveedor que acepte una
 imagen:
