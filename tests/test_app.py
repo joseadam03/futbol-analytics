@@ -98,3 +98,20 @@ def test_buscador_sportmonks_caido_no_revienta(monkeypatch):
     monkeypatch.setattr(sportmonks, "player_ficha", revienta)
     at = _buscar(_app(), "Consulta Que Falla")
     assert any("Sportmonks no responde" in e.value for e in at.error)
+
+
+def test_encaje_filtro_minutos_maximos_excluye_titulares():
+    # la liga sintética da 180 min a todos: por debajo se queda sin
+    # candidatos, por encima (o igual) los deja todos — así se comprueba
+    # que el filtro realmente aplica sin depender de datos reales
+    at = _app()
+    at.switch_page("app_pages/encaje.py")
+    at.run()
+    at.number_input(key="fit_max_min").set_value(100).run()
+    assert not at.exception, [str(e.value) for e in at.exception]
+    tablas = [df for df in at.dataframe if "Minutos" in df.value.columns]
+    assert tablas and tablas[0].value.empty
+
+    at.number_input(key="fit_max_min").set_value(180).run()
+    tablas = [df for df in at.dataframe if "Minutos" in df.value.columns]
+    assert tablas and not tablas[0].value.empty

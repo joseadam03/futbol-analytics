@@ -173,9 +173,20 @@ with tab_destinos:
         )
 
 with tab_fichajes:
-    c_equipo, c_grupo = st.columns([3, 1])
+    c_equipo, c_grupo, c_maxmin = st.columns([3, 1, 1.3])
     equipo = c_equipo.selectbox("Equipo que ficha", sorted(table["team"].unique()), key="fit_team")
     grupo = c_grupo.selectbox("Grupo posicional", ["Todos", "DF", "MF", "FW", "GK"], key="fit_group")
+    max_minutos = c_maxmin.number_input(
+        "Minutos máx.",
+        min_value=0,
+        value=0,
+        step=100,
+        key="fit_max_min",
+        help=(
+            "0 = sin límite. Útil para buscar suplentes o jugadores emergentes en vez de "
+            "titulares consolidados — el mínimo ya lo fija el filtro de minutos de la barra lateral."
+        ),
+    )
 
     extra = ac.cached_competitions(ctx["provider_key"])
     extra_labels = [lb for lb in extra["label"] if lb != ctx["comp_label"]]
@@ -242,6 +253,8 @@ with tab_fichajes:
         axis_weights,
         adjust_level=ajustar,
     )
+    if max_minutos > 0:
+        fichajes = fichajes[fichajes["minutes"] <= max_minutos]
     if "nickname" in fichajes.columns:
         fichajes["player"] = (
             fichajes["player"].map(display_of).fillna(fichajes["nickname"]).fillna(fichajes["player"])
