@@ -101,52 +101,7 @@ contenedor, cada redeploy repite esa espera. Si prefieres una demo instantánea
 sin depender de la red, añade `FUTBOL_ANALYTICS_FAKE = "1"` en *Secrets*: la
 app arranca al instante con la liga sintética.
 
-**VPS propio** (por ejemplo, una VM de **Oracle Cloud "Always Free"**: gratis
-de verdad, sin límite de tiempo ni facturación por uso — a diferencia de
-Streamlit Cloud, aquí la memoria la pones tú). Con Docker y git instalados:
-
-```bash
-git clone https://github.com/joseadam03/futbol-analytics.git && cd futbol-analytics
-docker build -t futbol-analytics .
-docker run -d --restart unless-stopped -p 8501:8501 \
-  -v futbol-cache:/app/data/cache \
-  --name futbol-analytics futbol-analytics
-```
-
-`--restart unless-stopped` levanta el contenedor solo tras reiniciar la VM;
-el volumen `futbol-cache` hace que la caché de competiciones sobreviva a un
-redeploy, algo que ni Streamlit Cloud ni una plataforma serverless ofrecen.
-Los secrets (Wyscout, Sportmonks) se pasan con `-e WYSCOUT_CLIENT_ID=...` en
-el mismo `docker run`.
-
-Con esto el contenedor ya corre, pero **no se ve desde fuera** hasta abrir el
-puerto 8501 en dos sitios distintos — falta cualquiera de los dos y no llega
-tráfico, sin ningún error visible en el contenedor:
-
-1. **Security List/NSG de la VCN** (en Oracle Cloud): por defecto solo el
-   puerto 22 (SSH) está abierto. En la consola: *Networking → Virtual Cloud
-   Networks → tu VCN → Security Lists → Add Ingress Rule* — origen
-   `0.0.0.0/0`, protocolo TCP, puerto destino `8501`.
-2. **Firewall del propio sistema operativo** dentro de la VM (esto es lo que
-   más sorprende: el paso 1 puede estar bien y seguir sin funcionar):
-
-   ```bash
-   # Oracle Linux (usa firewalld)
-   sudo firewall-cmd --permanent --add-port=8501/tcp && sudo firewall-cmd --reload
-
-   # Ubuntu (usa ufw, si está activo)
-   sudo ufw allow 8501/tcp
-   ```
-
-Verifica el acceso real desde fuera de la VM (el móvil con datos, no con el
-wifi de casa, para descartar coincidencias de red local) entrando a
-`http://IP_PUBLICA_DE_LA_VM:8501`. Al ser HTTP sin certificado, el navegador
-avisará de "no seguro" — para una URL con HTTPS y un dominio propio en vez
-de la IP a pelo, un proxy inverso como [Caddy](https://caddyserver.com/)
-delante lo resuelve con un par de líneas de configuración.
-
-También en Docker, en local o en cualquier otro proveedor que acepte una
-imagen:
+También en Docker:
 
 ```bash
 docker build -t futbol-analytics .
