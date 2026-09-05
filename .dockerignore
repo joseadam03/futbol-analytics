@@ -21,3 +21,4 @@ requirements-dev.txt
 .pre-commit-config.yaml
 .env
 .env.example
+config.yaml
