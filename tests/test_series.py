@@ -109,3 +109,35 @@ def test_jugador_inexistente_devuelve_vacio():
 def test_eventos_vacios_no_revientan():
     vacio = eventos().iloc[:0]
     assert series.team_series(vacio).empty
+
+
+def test_match_player_stats_ordena_por_impacto():
+    rows = [
+        _ev("A", "Pass", 1, player="A-1", id="p1", pass_shot_assist=True),
+        _ev(
+            "A",
+            "Shot",
+            1,
+            player="A-1",
+            shot_statsbomb_xg=0.6,
+            shot_key_pass_id="p1",
+            shot_outcome="Goal",
+        ),
+        _ev("B", "Shot", 1, player="B-1", shot_statsbomb_xg=0.1, shot_outcome="Off T"),
+    ]
+    tabla = series.match_player_stats(pd.DataFrame(rows), match_id=1)
+    assert tabla.iloc[0]["player"] == "A-1"
+    assert tabla.iloc[0]["goals"] == 1
+    assert tabla.iloc[0]["npxg"] == pytest.approx(0.6)
+    assert tabla.iloc[1]["player"] == "B-1"
+    assert tabla.iloc[1]["xa"] == pytest.approx(0.0)
+
+
+def test_match_player_stats_ignora_otros_partidos():
+    rows = eventos()  # tres partidos (match_id 1, 2, 3)
+    tabla = series.match_player_stats(rows, match_id=2)
+    assert tabla["npxg"].sum() == pytest.approx(1.0 + 1.0)  # xg_a + xg_b del segundo partido
+
+
+def test_match_player_stats_partido_inexistente_devuelve_vacio():
+    assert series.match_player_stats(eventos(), match_id=999).empty

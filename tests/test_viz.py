@@ -85,6 +85,32 @@ def test_shot_map():
     assert fig is not None
 
 
+def eventos_partido() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "match_id": [1, 1, 1, 1, 2],
+            "period": [1, 1, 1, 1, 1],
+            "team": ["Local", "Local", "Visitante", "Visitante", "Local"],
+            "type": ["Shot", "Shot", "Shot", "Shot", "Shot"],
+            "location": [[110.0, 40.0], [100.0, 35.0], [112.0, 42.0], [95.0, 30.0], [108.0, 40.0]],
+            "shot_type": ["Open Play"] * 5,
+            "shot_outcome": ["Goal", "Off T", "Off T", "Goal", "Goal"],
+            "shot_statsbomb_xg": [0.5, 0.2, 0.3, 0.6, 0.9],
+        }
+    )
+
+
+def test_match_shot_map():
+    fig = viz.match_shot_map(eventos_partido(), 1, "Local", "Visitante", "Competición Test")
+    assert fig is not None
+
+
+def test_match_shot_map_un_equipo_sin_tiros_no_revienta():
+    solo_local = eventos_partido()[eventos_partido()["team"] == "Local"]
+    fig = viz.match_shot_map(solo_local, 1, "Local", "Visitante", "Competición Test")
+    assert fig is not None
+
+
 def test_save_crea_el_png(tmp_path):
     fig = viz.radar_chart(fila_jugador(), "Competición Test")
     destino = tmp_path / "informes" / "radar.png"

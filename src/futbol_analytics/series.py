@@ -187,3 +187,66 @@ def player_series(
     df["npxg_cum"] = df["npxg"].cumsum()
     df["partido"] = range(1, len(df) + 1)
     return df
+
+
+def match_player_stats(events: pd.DataFrame, match_id: int) -> pd.DataFrame:
+    """Producción de cada jugador en un partido: goles, npxG, xA, tiros, pases clave.
+
+    Mismas métricas que `player_series` (goles vía tiros marcados, xA por el
+    tiro que generó cada pase clave) pero agregadas por jugador dentro de un
+    único partido, para ver quién más destacó.
+    """
+    from .metrics import is_progressive
+
+    ev = events[(events["period"] <= 4) & (events["match_id"] == match_id) & events["player"].notna()].copy()
+    if ev.empty:
+        return pd.DataFrame()
+
+    def col(nombre: str, defecto=np.nan) -> pd.Series:
+        return ev[nombre] if nombre in ev.columns else pd.Series(defecto, index=ev.index)
+
+    es_tiro = ev["type"] == "Shot"
+    sin_penalti = col("shot_type", None) != "Penalty"
+
+    ev["_goals"] = (es_tiro & (col("shot_outcome", None) == "Goal")).astype(float)
+    ev["_shots"] = (es_tiro & sin_penalti).astype(float)
+    xg_vals = pd.to_numeric(col("shot_statsbomb_xg"), errors="coerce").fillna(0.0)
+    ev["_npxg"] = np.where(es_tiro & sin_penalti, xg_vals, 0.0).astype(float)
+    ev["_key_passes"] = (
+        col("pass_shot_assist", None).eq(True) | col("pass_goal_assist", None).eq(True)
+    ).astype(float)
+
+    if "shot_key_pass_id" in events.columns and "id" in events.columns:
+        tiros = events[(events["match_id"] == match_id) & (events["type"] == "Shot")].dropna(
+            subset=["shot_key_pass_id"]
+        )
+        mapa = tiros.groupby("shot_key_pass_id")["shot_statsbomb_xg"].sum()
+        mapa = pd.to_numeric(mapa, errors="coerce").fillna(0.0)
+        ev["_xa"] = ev["id"].map(mapa).fillna(0.0) if "id" in ev.columns else 0.0
+    else:
+        ev["_xa"] = 0.0
+
+    prog = pd.Series(0.0, index=ev.index)
+    if "pass_end_location" in ev.columns:
+        mask = (
+            (ev["type"] == "Pass")
+            & col("pass_outcome", None).isna()
+            & ev["location"].notna()
+            & ev["pass_end_location"].notna()
+        )
+        if mask.any():
+            prog.loc[mask] = is_progressive(
+                ev.loc[mask, "location"], ev.loc[mask, "pass_end_location"]
+            ).astype(float)
+    ev["_prog_passes"] = prog
+
+    agg = ev.groupby(["player", "team"], as_index=False).agg(
+        goals=("_goals", "sum"),
+        npxg=("_npxg", "sum"),
+        xa=("_xa", "sum"),
+        shots=("_shots", "sum"),
+        key_passes=("_key_passes", "sum"),
+        prog_passes=("_prog_passes", "sum"),
+    )
+    agg["impacto"] = agg["goals"] + agg["npxg"] + agg["xa"]
+    return agg.sort_values("impacto", ascending=False).reset_index(drop=True)

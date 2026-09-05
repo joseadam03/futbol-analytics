@@ -22,6 +22,7 @@ PAGINAS = [
     "encaje",
     "equipos",
     "informe_equipo",
+    "partido",
     "competicion",
     "secuencias",
     "evolucion",

@@ -58,6 +58,29 @@ def team_match_stats(events: pd.DataFrame) -> pd.DataFrame:
     return flags.groupby(["match_id", "team"], as_index=False).sum()
 
 
+def match_summary(events: pd.DataFrame, match_id: int) -> pd.DataFrame:
+    """Local vs. visitante de un partido concreto: posesión, goles, tiros, npxG, presiones.
+
+    Mismo cruce local-rival que `team_metrics`, pero acotado a un `match_id`
+    para poder enfrentar exactamente las dos filas de ese partido.
+    """
+    per_match = team_match_stats(events[events["match_id"] == match_id])
+    merged = per_match.merge(per_match, on="match_id", suffixes=("", "_opp"))
+    merged = merged[merged["team"] != merged["team_opp"]]
+
+    out = pd.DataFrame(index=merged.index)
+    out["team"] = merged["team"]
+    out["rival"] = merged["team_opp"]
+    out["possession"] = 100 * merged["passes"] / (merged["passes"] + merged["passes_opp"])
+    out["goals"] = merged["goals"]
+    out["goals_against"] = merged["goals_opp"]
+    out["shots"] = merged["shots"]
+    out["npxg"] = merged["npxg"]
+    out["npxg_against"] = merged["npxg_opp"]
+    out["pressures"] = merged["pressures"]
+    return out.reset_index(drop=True)
+
+
 def team_metrics(events: pd.DataFrame) -> pd.DataFrame:
     """Tabla por equipo: posesión, npxG a favor/en contra, PPDA, presión."""
     per_match = team_match_stats(events)

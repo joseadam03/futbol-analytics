@@ -530,3 +530,68 @@ def shot_map(events: pd.DataFrame, player: str, competition_label: str, display:
         f"goles {len(goals)}  ·  tamaño ∝ xG",
     )
     return fig
+
+
+def match_shot_map(
+    events: pd.DataFrame,
+    match_id: int,
+    home_team: str,
+    away_team: str,
+    competition_label: str,
+):
+    """Tiros de todo el partido en un solo campo: local a la derecha, visitante a la izquierda.
+
+    StatsBomb registra cada evento desde la perspectiva atacante de su propio
+    equipo (la portería rival siempre en x=120), así que aquí solo se voltean
+    las coordenadas del visitante para separar los dos ataques en el mismo
+    campo — sin necesidad de saber en qué mitad se jugó cada tiro.
+    """
+    ev = events[(events["match_id"] == match_id) & (events["period"] <= 4) & events["location"].notna()]
+    shots = ev[(ev["type"] == "Shot") & (ev.get("shot_type") != "Penalty")].copy()
+
+    x = shots["location"].str[0].astype(float)
+    y = shots["location"].str[1].astype(float)
+    es_visitante = shots["team"] == away_team
+    shots["_x"] = x.where(~es_visitante, 120 - x)
+    shots["_y"] = y.where(~es_visitante, 80 - y)
+
+    pitch = Pitch(pitch_type="statsbomb", pitch_color=SURFACE, line_color=BASELINE, linewidth=1)
+    fig, ax = pitch.draw(figsize=(10, 7.4))
+    fig.set_facecolor(SURFACE)
+
+    def _plot(df, **kw):
+        if df.empty:
+            return
+        pitch.scatter(
+            df["_x"],
+            df["_y"],
+            s=df["shot_statsbomb_xg"].fillna(0) * 900 + 40,
+            ax=ax,
+            **kw,
+        )
+
+    for equipo, color in ((home_team, BLUE), (away_team, ORANGE)):
+        del_equipo = shots[shots["team"] == equipo]
+        goles = del_equipo[del_equipo["shot_outcome"] == "Goal"]
+        fallos = del_equipo[del_equipo["shot_outcome"] != "Goal"]
+        _plot(fallos, facecolor="none", edgecolor=color, linewidth=1.4, zorder=2)
+        _plot(goles, facecolor=color, edgecolor=SURFACE, linewidth=1, alpha=0.9, zorder=3)
+
+    home_shots = shots[shots["team"] == home_team]
+    away_shots = shots[shots["team"] == away_team]
+    handles = [
+        Line2D([], [], marker="o", ls="", mfc=BLUE, mec=SURFACE, ms=10, label=f"Gol {home_team}"),
+        Line2D([], [], marker="o", ls="", mfc="none", mec=BLUE, ms=10, label=f"Sin gol {home_team}"),
+        Line2D([], [], marker="o", ls="", mfc=ORANGE, mec=SURFACE, ms=10, label=f"Gol {away_team}"),
+        Line2D([], [], marker="o", ls="", mfc="none", mec=ORANGE, ms=10, label=f"Sin gol {away_team}"),
+    ]
+    ax.legend(handles=handles, loc="lower center", ncol=2, fontsize=8, frameon=False, labelcolor=INK_2)
+
+    npxg_home = home_shots["shot_statsbomb_xg"].fillna(0).sum()
+    npxg_away = away_shots["shot_statsbomb_xg"].fillna(0).sum()
+    _header(
+        fig,
+        f"{home_team}  vs  {away_team}",
+        f"{competition_label}  ·  npxG {npxg_home:.2f} - {npxg_away:.2f}  ·  tamaño ∝ xG",
+    )
+    return fig

@@ -33,6 +33,7 @@ pages = st.navigation(
         st.Page("app_pages/encaje.py", title="Encaje", icon="🧩"),
         st.Page("app_pages/equipos.py", title="Equipos", icon="🛡️"),
         st.Page("app_pages/informe_equipo.py", title="Informe de equipo", icon="📋"),
+        st.Page("app_pages/partido.py", title="Partido", icon="🥅"),
         st.Page("app_pages/competicion.py", title="Competición", icon="🌍"),
         st.Page("app_pages/secuencias.py", title="Secuencias", icon="🧵"),
         st.Page("app_pages/evolucion.py", title="Evolución", icon="📈"),

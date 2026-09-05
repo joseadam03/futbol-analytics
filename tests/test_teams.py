@@ -3,7 +3,7 @@
 import pandas as pd
 import pytest
 
-from futbol_analytics.teams import team_metrics, team_style_metrics, team_style_percentiles
+from futbol_analytics.teams import match_summary, team_metrics, team_style_metrics, team_style_percentiles
 
 
 def _event(team, type_, x=60.0, **kw):
@@ -53,6 +53,30 @@ def test_team_metrics_basic():
     assert b["npxg_diff_pm"] == pytest.approx(-0.3)
     # PPDA de B: 4 pases de A en construcción / 2 acciones defensivas altas
     assert b["ppda"] == pytest.approx(2.0)
+
+
+def test_match_summary_compara_local_y_visitante():
+    rows = []
+    rows += [_event("A", "Pass", x=50)] * 6 + [_event("B", "Pass", x=60)] * 4
+    rows.append(_event("A", "Shot", x=110, shot_outcome="Goal", shot_statsbomb_xg=0.5))
+    rows.append(_event("B", "Shot", x=105, shot_outcome="Off T", shot_statsbomb_xg=0.2))
+    resumen = match_summary(pd.DataFrame(rows), match_id=1)
+
+    a = resumen[resumen["team"] == "A"].iloc[0]
+    b = resumen[resumen["team"] == "B"].iloc[0]
+    assert a["rival"] == "B" and b["rival"] == "A"
+    assert a["possession"] == pytest.approx(60.0)
+    assert a["goals"] == 1 and a["goals_against"] == 0
+    assert b["goals"] == 0 and b["goals_against"] == 1
+    assert a["npxg"] == pytest.approx(0.5)
+    assert b["npxg"] == pytest.approx(0.2)
+
+
+def test_match_summary_ignora_otros_partidos():
+    rows = [_event("A", "Pass", x=50)] * 3 + [_event("B", "Pass", x=50)] * 3
+    rows += [_event("A", "Pass", x=50, match_id=2)] * 20
+    resumen = match_summary(pd.DataFrame(rows), match_id=1)
+    assert set(resumen["team"]) == {"A", "B"}
 
 
 def _estilo(team, largo, prog, **kw):
