@@ -101,7 +101,18 @@ contenedor, cada redeploy repite esa espera. Si prefieres una demo instantánea
 sin depender de la red, añade `FUTBOL_ANALYTICS_FAKE = "1"` en *Secrets*: la
 app arranca al instante con la liga sintética.
 
-También en Docker:
+**Hugging Face Spaces** (gratis, SDK Docker): reutiliza el `Dockerfile` de
+este repo tal cual — no hace falta tocarlo. Streamlit Community Cloud da
+solo ~1GB de RAM compartidos entre sesiones, y esta app carga eventos de
+competiciones enteras y renderiza varios paneles a la vez; si el deploy
+gratuito te falla o se degrada con el uso, Spaces da bastante más margen. Crea
+un Space nuevo con SDK "Docker", añade `sdk: docker` y `app_port: 8501` al
+frontmatter de su README (el `Dockerfile` ya expone ese puerto) y haz push de
+este repo a su remoto git. Los secrets de Wyscout/Sportmonks se configuran
+igual, como *Repository secrets* del Space.
+
+También en Docker, en local o en cualquier otro proveedor que acepte una
+imagen:
 
 ```bash
 docker build -t futbol-analytics .
