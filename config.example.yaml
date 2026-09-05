@@ -1,0 +1,22 @@
+# Copia este fichero a config.yaml (no se versiona) para exigir login en un
+# despliegue propio. Sin config.yaml la app no pide login (local, make demo,
+# tests). Genera el hash de cada contraseña con:
+#
+#   python scripts/hash_password.py
+#
+# y pégalo aquí — nunca guardes la contraseña en texto plano.
+
+credentials:
+  usernames:
+    recruiter:
+      email: recruiter@example.com
+      name: Nombre Apellido
+      password: $2b$12$REEMPLAZA.ESTE.HASH.CON.EL.QUE.GENERE.scripts/hash_password.py
+
+cookie:
+  # Nombre de la cookie de sesión (el que quieras).
+  name: futbol_analytics_auth
+  # Clave para firmar la cookie: una cadena aleatoria larga y propia de este
+  # despliegue, p. ej. `python -c "import secrets; print(secrets.token_hex(32))"`.
+  key: CAMBIA.ESTA.CLAVE.POR_UNA_ALEATORIA
+  expiry_days: 30

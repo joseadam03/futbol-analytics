@@ -92,6 +92,16 @@ docker build -t futbol-analytics .
 docker run -p 8501:8501 futbol-analytics
 ```
 
+### Login opcional
+
+Sin configuración, la app es de acceso libre (así siguen funcionando `make
+demo`/`make run` y los tests). Para exigir usuario y contraseña en un
+despliegue propio, copia `config.example.yaml` a `config.yaml` (no se
+versiona) y añade un usuario por persona con su contraseña ya hasheada
+(`python scripts/hash_password.py` genera el hash; nunca se guarda la
+contraseña en texto plano). La pantalla de login usa
+[streamlit-authenticator](https://github.com/mkhorasani/Streamlit-Authenticator).
+
 ## El CLI
 
 Para generar un informe estático (PNGs + CSVs) de cualquier jugador:
@@ -226,8 +236,9 @@ cálculos, y los penaltis dentro del juego de las métricas de tiro.
 streamlit_app.py      # entrada de la app (navegación multipágina)
 app_common.py         # estado compartido: carga de datos, sidebar, descargas
 app_pages/            # Inicio · Buscador · Jugador · Comparar · Encaje · Equipos · Informe de equipo
-                      # Competición · Secuencias · Evolución · Modelo xG · Metodología
+                      # Partido · Competición · Secuencias · Evolución · Modelo xG · Metodología
 src/futbol_analytics/
+  auth.py             # login opcional (config.yaml); sin él, acceso libre
   providers/          # contrato común + StatsBomb + Wyscout + demo sintética
   metrics.py          # métricas per-90 de jugador, PAdj, percentiles por grupo o rol
   teams.py            # rendimiento y estilo de equipo (ritmo, presión, progresión)
@@ -247,6 +258,7 @@ scripts/
   player_report.py    # CLI: informe estático de un jugador (PNGs, CSVs y PDF)
   warm_cache.py       # precalienta la caché de una competición
   verify_wyscout.py   # verifica el mapeo de Wyscout contra un partido real
+  hash_password.py    # genera el hash bcrypt de una contraseña para config.yaml
 tests/                # unitarios, de humo y de interfaz (AppTest) — siempre sin red
 .github/workflows/    # CI: lint+formato, tipos, auditoría, tests, Docker y publicación
 Dockerfile            # imagen multi-stage, usuario sin privilegios, healthcheck

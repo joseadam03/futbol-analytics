@@ -11,6 +11,7 @@ import streamlit as st
 from dotenv import load_dotenv
 
 import app_common as ac
+from futbol_analytics import auth
 
 load_dotenv()  # credenciales opcionales (p. ej. Wyscout) desde .env
 
@@ -20,6 +21,10 @@ FAVICON = Path(__file__).parent / "docs" / "favicon.png"
 st.set_page_config(
     page_title="Fútbol Analytics", page_icon=str(FAVICON) if FAVICON.exists() else "⚽", layout="wide"
 )
+
+# Sin config.yaml no hay gate (local, make demo, tests) — ver auth.py.
+if not auth.requiere_login():
+    st.stop()
 
 st.sidebar.title("⚽ Fútbol Analytics")
 st.session_state["ctx"] = ac.sidebar_context()

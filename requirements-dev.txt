@@ -16,10 +16,16 @@ attrs==26.1.0
     #   jsonschema
     #   referencing
     #   requests-cache
+bcrypt==5.0.0
+    # via streamlit-authenticator
+captcha==0.7.1
+    # via streamlit-authenticator
 cattrs==26.1.0
     # via requests-cache
 certifi==2026.7.22
     # via requests
+cffi==2.1.1 ; platform_python_implementation != 'PyPy'
+    # via cryptography
 cfgv==3.5.0
     # via pre-commit
 charset-normalizer==3.5.1
@@ -36,6 +42,8 @@ contourpy==1.3.3 ; python_full_version >= '3.11'
     # via matplotlib
 coverage==7.16.0
     # via pytest-cov
+cryptography==50.0.1
+    # via streamlit-authenticator
 cycler==0.12.1
     # via matplotlib
 distlib==0.4.3
@@ -45,6 +53,8 @@ exceptiongroup==1.3.1 ; python_full_version < '3.11'
     #   anyio
     #   cattrs
     #   pytest
+extra-streamlit-components==0.1.81
+    # via streamlit-authenticator
 filelock==3.32.5
     # via
     #   python-discovery
@@ -170,6 +180,7 @@ pathspec==1.1.1
     # via mypy
 pillow==12.3.0
     # via
+    #   captcha
     #   matplotlib
     #   mplsoccer
     #   streamlit
@@ -187,10 +198,14 @@ protobuf==7.36.1
     # via streamlit
 pyarrow==25.0.1
     # via streamlit
+pycparser==3.0 ; implementation_name != 'PyPy' and platform_python_implementation != 'PyPy'
+    # via cffi
 pydeck==0.9.3
     # via streamlit
 pygments==2.21.0
     # via pytest
+pyjwt==2.13.0
+    # via streamlit-authenticator
 pyparsing==3.3.2
     # via matplotlib
 pytest==9.1.1
@@ -212,7 +227,9 @@ python-multipart==0.0.32
 pytz==2026.3.post1 ; python_full_version < '3.11'
     # via pandas
 pyyaml==6.0.3
-    # via pre-commit
+    # via
+    #   pre-commit
+    #   streamlit-authenticator
 referencing==0.37.0
     # via
     #   jsonschema
@@ -264,6 +281,11 @@ starlette==1.6.0
 statsbombpy==1.22.0
     # via futbol-analytics
 streamlit==1.63.0
+    # via
+    #   extra-streamlit-components
+    #   futbol-analytics
+    #   streamlit-authenticator
+streamlit-authenticator==0.4.2
     # via futbol-analytics
 threadpoolctl==3.6.0
     # via scikit-learn
@@ -281,8 +303,10 @@ typing-extensions==4.16.0
     #   altair
     #   anyio
     #   cattrs
+    #   cryptography
     #   exceptiongroup
     #   mypy
+    #   pyjwt
     #   referencing
     #   starlette
     #   streamlit
