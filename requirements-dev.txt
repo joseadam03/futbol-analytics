@@ -265,7 +265,7 @@ starlette==1.6.0
     # via streamlit
 statsbombpy==1.22.0
     # via futbol-analytics
-streamlit==1.62.0
+streamlit==1.63.0
     # via futbol-analytics
 threadpoolctl==3.6.0
     # via scikit-learn
