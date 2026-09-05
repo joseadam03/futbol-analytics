@@ -3,7 +3,10 @@
 Con FUTBOL_ANALYTICS_FAKE=1 el proveedor demo es el primero del registro y
 la barra lateral lo selecciona por defecto, así que AppTest ejecuta el
 mismo código que ve un usuario — carga de datos, sidebar y cada página —
-en segundos y de forma determinista.
+en segundos y de forma determinista. El login es obligatorio (ver
+`auth.py`), así que `_app()` entra con la cuenta demo integrada antes de
+devolver el AppTest; la sesión sigue autenticada en las llamadas a `.run()`
+posteriores, igual que en un navegador real.
 """
 
 from pathlib import Path
@@ -11,7 +14,7 @@ from pathlib import Path
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from futbol_analytics import photos, sportmonks, tsdb
+from futbol_analytics import auth, photos, sportmonks, tsdb
 
 ROOT = Path(__file__).resolve().parents[1]
 PAGINAS = [
@@ -40,7 +43,12 @@ def modo_demo(monkeypatch, tmp_path):
 
 
 def _app() -> AppTest:
-    return AppTest.from_file(str(ROOT / "streamlit_app.py"), default_timeout=180)
+    at = AppTest.from_file(str(ROOT / "streamlit_app.py"), default_timeout=180)
+    at.run()
+    at.text_input[0].set_value(auth.DEMO_USER)
+    at.text_input[1].set_value(auth.DEMO_PASSWORD)
+    at.button[0].click().run()
+    return at
 
 
 def test_la_app_arranca_en_modo_demo():

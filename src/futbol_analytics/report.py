@@ -79,9 +79,11 @@ def _embed_photo(
 def _header_band(fig, title: str, height: float = 0.06, crest_url: str | None = None) -> None:
     """Franja de color a todo lo ancho con el nombre en blanco, como cabecera del documento.
 
-    Con `crest_url`, incrusta el escudo del equipo a la derecha de la franja;
-    sin URL o si no se puede descargar, la franja queda igual que sin él — un
-    escudo caído no debe romper el informe.
+    Con `crest_url`, incrusta el escudo del equipo a la derecha, grande y
+    superpuesto al borde inferior de la franja — mitad dentro de la banda de
+    color, mitad en el cuerpo blanco — en vez de un icono pequeño encajado
+    dentro de ella. Sin URL o si no se puede descargar, la franja queda igual
+    que sin él — un escudo caído no debe romper el informe.
     """
     ax = fig.add_axes((0, 1 - height, 1, height))
     ax.set_facecolor(viz.BLUE)
@@ -99,10 +101,14 @@ def _header_band(fig, title: str, height: float = 0.06, crest_url: str | None = 
         # (ver _embed_photo), pero sin esto la caja saldría rectangular y el
         # escudo quedaría descentrado en vez de aprovecharla entera.
         fig_w_in, fig_h_in = fig.get_size_inches()
-        lado_h = height * 0.78
+        # casi el doble de alto que la propia franja: el escudo debe
+        # sobresalir de ella, no caber dentro. El límite es 2×height — si no,
+        # su borde superior asomaría por encima del folio (y=1).
+        lado_h = height * 1.9
         lado_w = lado_h * fig_h_in / fig_w_in
         margen = 0.02
-        pos = (1 - margen - lado_w, 1 - height + (height - lado_h) / 2, lado_w, lado_h)
+        borde = 1 - height  # línea entre la franja de color y el cuerpo blanco
+        pos = (1 - margen - lado_w, borde - lado_h / 2, lado_w, lado_h)
         # escudos: dibujos planos, no retratos — se leen bien a menor DPI
         # que una cara, así que el umbral es más laxo que el de _embed_photo.
         _embed_photo(fig, crest_url, pos, min_dpi=90.0)

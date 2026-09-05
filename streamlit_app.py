@@ -22,7 +22,7 @@ st.set_page_config(
     page_title="Fútbol Analytics", page_icon=str(FAVICON) if FAVICON.exists() else "⚽", layout="wide"
 )
 
-# Sin config.yaml no hay gate (local, make demo, tests) — ver auth.py.
+# Login siempre obligatorio, con usuario demo integrado — ver auth.py.
 if not auth.requiere_login():
     st.stop()
 

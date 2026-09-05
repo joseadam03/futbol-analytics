@@ -4,8 +4,18 @@ import pandas as pd
 import streamlit as st
 
 import app_common as ac
+from futbol_analytics import fit, viz
 from futbol_analytics import teams as tm
-from futbol_analytics import viz
+
+
+def _con_icono_realismo(texto: str) -> str:
+    """Mismo criterio que en Encaje: aviso visual sin tocar el texto que exporta el CSV."""
+    if "Política del club" in texto:
+        return f"🚫 {texto}"
+    if texto:
+        return f"🔼 {texto}"
+    return texto
+
 
 ctx = st.session_state["ctx"]
 
@@ -92,6 +102,53 @@ if pd.notna(fila_e.get("prog_pass_share_pct")):
         f"{fila_e['final_third_pm']:.1f} veces por partido al último tercio."
     )
 st.markdown("\n".join(lineas) if lineas else "_Sin datos suficientes para el perfil de estilo._")
+
+st.markdown(f"#### Top 5 fichajes que encajarían en **{equipo}**")
+_restriccion = fit.restriccion_conocida(equipo)
+if _restriccion:
+    st.warning(
+        f"🚫 **{equipo}** {_restriccion} — un dato real que estos números no pueden ver "
+        "(no hay cantera ni nacionalidad en StatsBomb open data). La lista de abajo ignora "
+        "esa política a propósito: léela como estilo y nivel puros, no como una "
+        "recomendación real para este club."
+    )
+fichajes = fit.players_for_team(ctx["table"], ctx["events"], equipo)
+# igual que en Encaje: un fichaje muy sobrecualificado (Messi a un equipo modesto) no
+# es una recomendación real de mercado, así que no compite por hueco en el top 5
+fichajes = fichajes[~fichajes["realismo"].str.startswith("Sobrecualificado")]
+if "nickname" in fichajes.columns:
+    fichajes["player"] = (
+        fichajes["player"].map(ctx["display_of"]).fillna(fichajes["nickname"]).fillna(fichajes["player"])
+    )
+else:
+    fichajes["player"] = fichajes["player"].map(ctx["display_of"]).fillna(fichajes["player"])
+
+top5 = fichajes.head(5)
+if top5.empty:
+    st.caption("Sin candidatos claros con los datos disponibles.")
+else:
+    vista_top5 = top5[["player", "team", "primary_position", "encaje", "mejora_puesto", "realismo"]].copy()
+    vista_top5["realismo"] = vista_top5["realismo"].map(_con_icono_realismo)
+    st.dataframe(
+        vista_top5.rename(
+            columns={
+                "player": "Jugador",
+                "team": "Equipo actual",
+                "primary_position": "Posición",
+                "encaje": "Encaje",
+                "mejora_puesto": "Mejora del puesto",
+                "realismo": "Realismo",
+            }
+        ),
+        use_container_width=True,
+        hide_index=True,
+        column_config={"Encaje": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.0f")},
+    )
+    st.caption(
+        "Mismo motor que la página **Encaje** (estilo del equipo + mejora del puesto, al "
+        "50/50) — ve allí para afinar pesos, filtrar por grupo posicional o exportar el "
+        "ranking completo en CSV."
+    )
 
 st.markdown("#### Toda la competición")
 tabla = estilo.copy()

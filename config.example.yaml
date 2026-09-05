@@ -1,6 +1,8 @@
-# Copia este fichero a config.yaml (no se versiona) para exigir login en un
-# despliegue propio. Sin config.yaml la app no pide login (local, make demo,
-# tests). Genera el hash de cada contraseña con:
+# Copia este fichero a config.yaml (no se versiona) para añadir usuarios
+# propios. El login siempre está activo (ver auth.py): sin config.yaml solo
+# existe la cuenta de demo integrada (`demo` / `demo1234`, liga sintética);
+# lo que pongas aquí se AÑADE a esa demo, no la sustituye. Genera el hash de
+# cada contraseña con:
 #
 #   python scripts/hash_password.py
 #
@@ -20,15 +22,6 @@ credentials:
       # .env para todo el despliegue.
       # wyscout_client_id: ...
       # wyscout_client_secret: ...
-
-    # Usuario de solo demo: entra con la liga sintética preseleccionada,
-    # sin acceso a ninguna clave real de nadie. Útil para dar acceso a un
-    # recruiter sin exponer datos ni credenciales reales.
-    recruiter:
-      email: recruiter@example.com
-      name: Recruiter Demo
-      password: $2b$12$REEMPLAZA.ESTE.HASH.CON.EL.QUE.GENERE.scripts/hash_password.py
-      provider: fake
 
 cookie:
   # Nombre de la cookie de sesión (el que quieras).

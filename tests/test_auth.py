@@ -1,7 +1,8 @@
-"""Login opcional: sin config.yaml no cambia nada; con él, exige
-usuario/contraseña antes de mostrar cualquier página. También cubre los dos
-campos opcionales por usuario: proveedor forzado a demo y claves de Wyscout
-propias (que no deben filtrarse a otras sesiones)."""
+"""Login siempre obligatorio: sin config.yaml solo existe la cuenta demo
+integrada; con él, sus usuarios se añaden a esa demo. En ambos casos hay
+que pasar por usuario/contraseña antes de ver cualquier página. También
+cubre los dos campos opcionales por usuario: proveedor forzado a demo y
+claves de Wyscout propias (que no deben filtrarse a otras sesiones)."""
 
 from pathlib import Path
 
@@ -44,10 +45,28 @@ def _config_con_usuario(tmp_path: Path, password: str) -> Path:
     return path
 
 
-def test_sin_config_no_pide_login(monkeypatch, tmp_path):
+def test_sin_config_pide_login_y_la_demo_integrada_entra(monkeypatch, tmp_path):
     monkeypatch.setattr(auth, "CONFIG_PATH", tmp_path / "no-existe.yaml")
     at = _app()
     at.run()
+    assert not at.exception, [str(e.value) for e in at.exception]
+    assert "ctx" not in at.session_state
+    assert len(at.text_input) == 2
+
+    at.text_input[0].set_value(auth.DEMO_USER)
+    at.text_input[1].set_value(auth.DEMO_PASSWORD)
+    at.button[0].click().run()
+    assert not at.exception, [str(e.value) for e in at.exception]
+    assert at.session_state["ctx"]["provider_key"] == "fake"
+
+
+def test_config_propio_anade_usuarios_sin_perder_la_demo_integrada(monkeypatch, tmp_path):
+    monkeypatch.setattr(auth, "CONFIG_PATH", _config_con_usuario(tmp_path, "clave123"))
+    at = _app()
+    at.run()
+    at.text_input[0].set_value(auth.DEMO_USER)
+    at.text_input[1].set_value(auth.DEMO_PASSWORD)
+    at.button[0].click().run()
     assert not at.exception, [str(e.value) for e in at.exception]
     assert at.session_state["ctx"]["provider_key"] == "fake"
 
