@@ -87,3 +87,93 @@ def test_similar_players_note_incluye_los_nombres():
 def test_similar_players_note_vacio_sin_datos():
     assert narrative.similar_players_note(None) == ""
     assert narrative.similar_players_note(pd.DataFrame()) == ""
+
+
+def test_season_strengths_sin_minutos_devuelve_vacio():
+    assert narrative.season_strengths([]) == ([], [])
+    temporadas = [{"season_name": "24/25", "minutes": 0, "appearances": 5}]
+    assert narrative.season_strengths(temporadas) == ([], [])
+
+
+def test_season_strengths_mas_protagonismo_entre_temporadas():
+    temporadas = [
+        {"season_name": "23/24", "minutes": 500, "appearances": 10, "lineups": 3},
+        {"season_name": "24/25", "minutes": 1200, "appearances": 20, "lineups": 5},
+    ]
+    fortalezas, a_vigilar = narrative.season_strengths(temporadas)
+    titulos = " ".join(titulo for titulo, _ in fortalezas)
+    assert "Más protagonismo" in titulos
+    assert "1200 min en 24/25" in titulos
+    assert not any("Menos protagonismo" in t for t, _ in a_vigilar)
+
+
+def test_season_strengths_menos_protagonismo_entre_temporadas():
+    temporadas = [
+        {"season_name": "23/24", "minutes": 2000, "appearances": 30, "lineups": 28},
+        {"season_name": "24/25", "minutes": 600, "appearances": 15, "lineups": 4},
+    ]
+    fortalezas, a_vigilar = narrative.season_strengths(temporadas)
+    titulos = " ".join(titulo for titulo, _ in a_vigilar)
+    assert "Menos protagonismo" in titulos
+    assert "600 min en 24/25" in titulos
+
+
+def test_season_strengths_titular_habitual():
+    temporadas = [{"season_name": "24/25", "minutes": 1800, "appearances": 20, "lineups": 18}]
+    fortalezas, _ = narrative.season_strengths(temporadas)
+    titulos = " ".join(titulo for titulo, _ in fortalezas)
+    assert "Titular habitual" in titulos
+    assert "18 de 20 partidos" in titulos
+
+
+def test_season_strengths_poca_titularidad():
+    temporadas = [{"season_name": "24/25", "minutes": 400, "appearances": 20, "lineups": 3}]
+    _, a_vigilar = narrative.season_strengths(temporadas)
+    titulos = " ".join(titulo for titulo, _ in a_vigilar)
+    assert "Poca titularidad" in titulos
+    assert "3 de 20 partidos" in titulos
+
+
+def test_season_strengths_contribucion_en_gol():
+    temporadas = [
+        {"season_name": "24/25", "minutes": 900, "appearances": 12, "lineups": 6, "goals": 5, "assists": 3}
+    ]
+    fortalezas, _ = narrative.season_strengths(temporadas)
+    titulos = " ".join(titulo for titulo, _ in fortalezas)
+    assert "Contribución en gol" in titulos
+    assert "5+3 en 24/25" in titulos
+
+
+def test_season_strengths_porterias_a_cero():
+    temporadas = [
+        {"season_name": "24/25", "minutes": 1800, "appearances": 20, "lineups": 20, "clean_sheets": 8}
+    ]
+    fortalezas, _ = narrative.season_strengths(temporadas)
+    titulos = " ".join(titulo for titulo, _ in fortalezas)
+    assert "Porterías a cero" in titulos
+    assert "8 de 20 partidos" in titulos
+
+
+def test_season_strengths_una_sola_temporada_no_compara_tendencia():
+    # sin temporada anterior no hay "más/menos protagonismo" que comparar,
+    # pero el resto de hechos de la temporada actual se calculan igual
+    temporadas = [{"season_name": "24/25", "minutes": 1800, "appearances": 20, "lineups": 19}]
+    fortalezas, a_vigilar = narrative.season_strengths(temporadas)
+    assert not any("protagonismo" in t for t, _ in fortalezas + a_vigilar)
+    assert any("Titular habitual" in t for t, _ in fortalezas)
+
+
+def test_season_strengths_limita_a_dos_por_columna():
+    temporadas = [
+        {
+            "season_name": "24/25",
+            "minutes": 1800,
+            "appearances": 20,
+            "lineups": 19,
+            "goals": 5,
+            "assists": 3,
+            "clean_sheets": 8,
+        }
+    ]
+    fortalezas, _ = narrative.season_strengths(temporadas)
+    assert len(fortalezas) <= 2

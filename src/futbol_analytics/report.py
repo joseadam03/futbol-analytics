@@ -371,6 +371,15 @@ def ficha_report_pdf(ficha: dict | None, ficha_sm: dict | None, query: str) -> b
     # para una sección que la fuente no tenía.
 
     temporadas = (ficha_sm or {}).get("temporadas") or []
+    # se calculan ya para reservarles sitio al dimensionar la tabla de abajo:
+    # sin esto, una tabla de 10 temporadas se queda con casi todo el espacio
+    # restante y esta sección (o el pie de página) puede acabar fuera de la hoja.
+    fortalezas, a_vigilar = narrative.season_strengths(temporadas)
+    alto_resumen = (
+        0.021 + (max(len(fortalezas), len(a_vigilar), 1) - 1) * 0.033 + 0.026 + 0.02
+        if (fortalezas or a_vigilar)
+        else 0.0
+    )
     if temporadas:
         _section_heading(fig, 0.06, y, "Estadísticas de temporada (Sportmonks)")
         y -= 0.028
@@ -399,7 +408,7 @@ def ficha_report_pdf(ficha: dict | None, ficha_sm: dict | None, query: str) -> b
                 fila.append(f"{v:.0f}" if isinstance(v, (int, float)) else "—")
             table_data.append(fila)
 
-        alto_tabla = min(0.045 * len(table_data), y - 0.08)
+        alto_tabla = min(0.045 * len(table_data), y - 0.08 - alto_resumen)
         ax = fig.add_axes((0.06, y - alto_tabla, 0.88, alto_tabla))
         ax.axis("off")
         tbl = ax.table(cellText=table_data, loc="center", cellLoc="center")
@@ -416,6 +425,7 @@ def ficha_report_pdf(ficha: dict | None, ficha_sm: dict | None, query: str) -> b
             else:
                 cell.set_facecolor(viz.SURFACE)
                 cell.set_text_props(color=viz.INK_2)
+        y -= alto_tabla + 0.03
     else:
         fig.text(
             0.06,
@@ -426,10 +436,39 @@ def ficha_report_pdf(ficha: dict | None, ficha_sm: dict | None, query: str) -> b
             color=viz.MUTED,
             va="top",
         )
+        y -= 0.03
+
+    # fortalezas/a_vigilar ya calculadas arriba (se necesitaban para reservar
+    # su espacio antes de dimensionar la tabla). No es un ranking: sin eventos
+    # con coordenadas no hay percentiles frente a rivales, así que esto son
+    # hechos directos (participación, contribución de gol, titularidad), no
+    # una comparación. "A vigilar" solo aparece si hay una tendencia negativa
+    # real — no se fuerza como en el informe-CV, aquí no hay percentil de
+    # referencia para decidir qué es "flojo".
+    if fortalezas or a_vigilar:
+        y_top = y
+        _section_heading(fig, 0.06, y_top, "Fortalezas")
+        for i, (titulo, definicion) in enumerate(fortalezas):
+            y_t = y_top - 0.021 - i * 0.033
+            fig.text(0.06, y_t, titulo, fontsize=8.5, color=viz.INK_2, va="top")
+            if definicion:
+                fig.text(
+                    0.06, y_t - 0.013, _truncate(definicion, 68), fontsize=6.5, color=viz.MUTED, va="top"
+                )
+        if a_vigilar:
+            _section_heading(fig, 0.54, y_top, "A vigilar")
+            for i, (titulo, definicion) in enumerate(a_vigilar):
+                y_t = y_top - 0.021 - i * 0.033
+                fig.text(0.54, y_t, titulo, fontsize=8.5, color=viz.INK_2, va="top")
+                if definicion:
+                    fig.text(
+                        0.54, y_t - 0.013, _truncate(definicion, 68), fontsize=6.5, color=viz.MUTED, va="top"
+                    )
+        y -= alto_resumen
 
     fig.text(
         0.06,
-        0.03,
+        min(y, 0.03),
         "Generado con futbol-analytics · Fuentes: TheSportsDB, Sportmonks",
         fontsize=7,
         color=viz.MUTED,

@@ -91,6 +91,94 @@ def player_strengths(prow: pd.Series, pool_desc: str) -> tuple[str, list[Rasgo],
     return resumen, fortalezas, debilidades
 
 
+def season_strengths(temporadas: list[dict]) -> tuple[list[Rasgo], list[Rasgo]]:
+    """Fortalezas y puntos a vigilar a partir de estadísticas de temporada (Sportmonks).
+
+    Para jugadores fuera de los open data no hay eventos con coordenadas, así
+    que no hay percentiles frente a rivales — esto no es un ranking, son
+    hechos directos de la tabla de temporadas (participación, contribución de
+    gol, titularidad) resumidos como conclusión. A diferencia de
+    `player_strengths`, si no hay ninguna tendencia negativa real que señalar,
+    la lista de "a vigilar" sale vacía en vez de forzar una: no hay percentil
+    de referencia para decidir qué es "flojo".
+    """
+    con_minutos = [t for t in temporadas if isinstance(t.get("minutes"), (int, float)) and t["minutes"] > 0]
+    if not con_minutos:
+        return [], []
+    recientes = sorted(con_minutos, key=lambda t: str(t.get("season_name", "")), reverse=True)
+    actual = recientes[0]
+    anterior = recientes[1] if len(recientes) > 1 else None
+
+    def _num(t: dict, campo: str) -> float:
+        v = t.get(campo)
+        return float(v) if isinstance(v, (int, float)) else 0.0
+
+    fortalezas: list[Rasgo] = []
+    a_vigilar: list[Rasgo] = []
+
+    if anterior is not None:
+        min_actual, min_anterior = _num(actual, "minutes"), _num(anterior, "minutes")
+        temporada_actual, temporada_anterior = (
+            actual.get("season_name", "?"),
+            anterior.get("season_name", "?"),
+        )
+        if min_anterior > 0 and min_actual >= min_anterior * 1.2:
+            fortalezas.append(
+                (
+                    f"Más protagonismo — {min_actual:.0f} min en {temporada_actual}",
+                    f"subió desde {min_anterior:.0f} min en {temporada_anterior}",
+                )
+            )
+        elif min_anterior > 0 and min_actual <= min_anterior * 0.7:
+            a_vigilar.append(
+                (
+                    f"Menos protagonismo — {min_actual:.0f} min en {temporada_actual}",
+                    f"bajó desde {min_anterior:.0f} min en {temporada_anterior}",
+                )
+            )
+
+    apariciones, titularidades = _num(actual, "appearances"), _num(actual, "lineups")
+    if apariciones > 0:
+        ratio = titularidades / apariciones
+        temporada = actual.get("season_name", "?")
+        if ratio >= 0.7:
+            fortalezas.append(
+                (
+                    f"Titular habitual — {titularidades:.0f} de {apariciones:.0f} partidos ({temporada})",
+                    "juega de inicio la mayoría de partidos disputados",
+                )
+            )
+        elif ratio <= 0.3:
+            a_vigilar.append(
+                (
+                    f"Poca titularidad — {titularidades:.0f} de {apariciones:.0f} partidos ({temporada})",
+                    "entra sobre todo desde el banquillo",
+                )
+            )
+
+    goles, asistencias, minutos = _num(actual, "goals"), _num(actual, "assists"), _num(actual, "minutes")
+    if (goles + asistencias) > 0 and minutos > 0:
+        temporada = actual.get("season_name", "?")
+        fortalezas.append(
+            (
+                f"Contribución en gol — {goles:.0f}+{asistencias:.0f} en {temporada}",
+                f"un gol o asistencia cada {minutos / (goles + asistencias):.0f} minutos",
+            )
+        )
+
+    porterias_cero = actual.get("clean_sheets")
+    if isinstance(porterias_cero, (int, float)) and apariciones > 0:
+        temporada = actual.get("season_name", "?")
+        fortalezas.append(
+            (
+                f"Porterías a cero — {porterias_cero:.0f} de {apariciones:.0f} partidos ({temporada})",
+                "",
+            )
+        )
+
+    return fortalezas[:2], a_vigilar[:2]
+
+
 def similar_players_note(similar: pd.DataFrame | None) -> str:
     """Frase sobre a qué jugadores se parece, dejando claro que es de estilo, no de nivel."""
     if similar is None or similar.empty:
