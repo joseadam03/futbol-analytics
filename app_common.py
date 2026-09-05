@@ -7,7 +7,19 @@ import io
 import pandas as pd
 import streamlit as st
 
-from futbol_analytics import metrics, photos, report, sequences, series, sportmonks, teams, tsdb, viz, xg
+from futbol_analytics import (
+    crests,
+    metrics,
+    photos,
+    report,
+    sequences,
+    series,
+    sportmonks,
+    teams,
+    tsdb,
+    viz,
+    xg,
+)
 from futbol_analytics.providers import get_provider, list_providers
 
 SCATTER_COLORS = {
@@ -66,6 +78,11 @@ def pool_label(prow: pd.Series) -> str:
 @st.cache_data(show_spinner=False)
 def photo_of(display_name: str) -> str | None:
     return photos.photo_url(display_name)
+
+
+@st.cache_data(show_spinner=False)
+def crest_of(team: str) -> str | None:
+    return crests.crest_url(team)
 
 
 @st.cache_data(show_spinner=False, ttl=3600)
@@ -147,7 +164,14 @@ def informe_pdf(
     apodo = prow.get("nickname")
     display = apodo if isinstance(apodo, str) and apodo else player
     try:
-        return report.player_report_pdf(table, events, player, comp_label, photo_url=photo_of(display))
+        return report.player_report_pdf(
+            table,
+            events,
+            player,
+            comp_label,
+            photo_url=photo_of(display),
+            crest_url=crest_of(str(prow["team"])),
+        )
     finally:
         viz.use_theme(theme())  # el informe fuerza tema claro; restaurar el de la app
 
@@ -155,8 +179,9 @@ def informe_pdf(
 @st.cache_data(show_spinner=False)
 def ficha_informe_pdf(ficha: dict | None, ficha_sm: dict | None, query: str) -> bytes:
     """Informe-CV ligero (bio + estadísticas de temporada) para un jugador fuera de los open data."""
+    equipo = (ficha or {}).get("equipo")
     try:
-        return report.ficha_report_pdf(ficha, ficha_sm, query)
+        return report.ficha_report_pdf(ficha, ficha_sm, query, crest_url=crest_of(equipo) if equipo else None)
     finally:
         viz.use_theme(theme())  # el informe fuerza tema claro; restaurar el de la app
 

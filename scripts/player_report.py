@@ -18,7 +18,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from futbol_analytics import metrics, photos, report, similarity, viz
+from futbol_analytics import crests, metrics, photos, report, similarity, viz
 from futbol_analytics.providers import get_provider
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -94,7 +94,10 @@ def main() -> None:
     table.to_csv(ROOT / "output" / "metricas_competicion.csv", index=False)
 
     foto_url = photos.photo_url(display)
-    pdf = report.player_report_pdf(table, events, player, comp_label, display=display, photo_url=foto_url)
+    escudo_url = crests.crest_url(str(prow["team"]))
+    pdf = report.player_report_pdf(
+        table, events, player, comp_label, display=display, photo_url=foto_url, crest_url=escudo_url
+    )
     (out_dir / "informe.pdf").write_bytes(pdf)
     print("Informe-CV de una página: informe.pdf")
 

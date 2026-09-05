@@ -115,3 +115,32 @@ def test_un_exito_rearma_el_circuito(monkeypatch):
         tsdb.search_players("Jugador A")
     assert tsdb.search_players("Franculino")[0]["nombre"] == "Franculino Djú"
     assert tsdb._consecutive_failures == 0
+
+
+VALID_TEAMS_PAYLOAD = {
+    "teams": [
+        {"strSport": "Basketball", "strTeam": "Otro"},
+        {"strSport": "Soccer", "strTeam": "Sestao River Club", "strTeamBadge": "https://img/escudo.png"},
+        {"strSport": "Soccer", "strTeam": "Sin escudo", "strTeamBadge": None, "strBadge": None},
+    ]
+}
+
+
+def test_search_teams_normaliza_fichas(monkeypatch):
+    monkeypatch.setattr(tsdb.requests, "get", make_get([FakeResponse(payload=VALID_TEAMS_PAYLOAD)], []))
+    equipos = tsdb.search_teams("Sestao")
+    assert len(equipos) == 2  # el de baloncesto se filtra
+    assert equipos[0]["nombre"] == "Sestao River Club"
+    assert equipos[0]["escudo"] == "https://img/escudo.png"
+    assert equipos[1]["escudo"] is None
+
+
+def test_search_teams_sin_resultados_devuelve_lista_vacia(monkeypatch):
+    monkeypatch.setattr(tsdb.requests, "get", make_get([FakeResponse(payload={"teams": None})], []))
+    assert tsdb.search_teams("Nadie") == []
+
+
+def test_search_teams_propaga_service_unavailable(monkeypatch):
+    monkeypatch.setattr(tsdb.requests, "get", make_get([FakeResponse(status_code=403)], []))
+    with pytest.raises(tsdb.ServiceUnavailable):
+        tsdb.search_teams("Equipo")

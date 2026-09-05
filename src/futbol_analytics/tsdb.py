@@ -15,6 +15,7 @@ import requests
 log = logging.getLogger(__name__)
 
 SEARCH_URL = "https://www.thesportsdb.com/api/v1/json/3/searchplayers.php"
+TEAM_SEARCH_URL = "https://www.thesportsdb.com/api/v1/json/3/searchteams.php"
 
 # Cloudflare suele retar al User-Agent por defecto de python-requests;
 # nos identificamos como aplicación.
@@ -92,6 +93,32 @@ def search_players(name: str) -> list[dict]:
                 "estado": p.get("strStatus"),
                 "descripcion": p.get("strDescriptionEN"),
                 "foto": p.get("strCutout") or p.get("strThumb"),
+            }
+        )
+    return fichas
+
+
+def search_teams(name: str) -> list[dict]:
+    """Equipos que casan con el nombre buscado, con su escudo si existe.
+
+    Devuelve una lista (posiblemente vacía) de fichas normalizadas.
+    Lanza ServiceUnavailable si el servicio está caído o bloqueando;
+    el llamante decide si degradar en silencio o avisar al usuario.
+    """
+    payload = _get_json(TEAM_SEARCH_URL, {"t": name})
+    equipos = payload.get("teams") or []
+    if not isinstance(equipos, list):
+        log.warning("respuesta inesperada de TheSportsDB para equipo %r", name)
+        return []
+
+    fichas = []
+    for t in equipos:
+        if not isinstance(t, dict) or t.get("strSport") != "Soccer":
+            continue
+        fichas.append(
+            {
+                "nombre": t.get("strTeam"),
+                "escudo": t.get("strTeamBadge") or t.get("strBadge"),
             }
         )
     return fichas

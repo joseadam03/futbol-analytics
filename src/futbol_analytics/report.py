@@ -76,8 +76,13 @@ def _embed_photo(
     return True
 
 
-def _header_band(fig, title: str, height: float = 0.06) -> None:
-    """Franja de color a todo lo ancho con el nombre en blanco, como cabecera del documento."""
+def _header_band(fig, title: str, height: float = 0.06, crest_url: str | None = None) -> None:
+    """Franja de color a todo lo ancho con el nombre en blanco, como cabecera del documento.
+
+    Con `crest_url`, incrusta el escudo del equipo a la derecha de la franja;
+    sin URL o si no se puede descargar, la franja queda igual que sin él — un
+    escudo caído no debe romper el informe.
+    """
     ax = fig.add_axes((0, 1 - height, 1, height))
     ax.set_facecolor(viz.BLUE)
     ax.set_xticks([])
@@ -87,6 +92,20 @@ def _header_band(fig, title: str, height: float = 0.06) -> None:
     ax.text(
         0.045, 0.5, title, fontsize=21, fontweight="bold", color=WHITE, va="center", transform=ax.transAxes
     )
+    if crest_url:
+        # caja físicamente cuadrada (no solo en fracción de figura): la
+        # página es A4 vertical, así que 1 unidad de x y de y en fracción de
+        # figura no miden lo mismo en pulgadas. imshow no deforma la imagen
+        # (ver _embed_photo), pero sin esto la caja saldría rectangular y el
+        # escudo quedaría descentrado en vez de aprovecharla entera.
+        fig_w_in, fig_h_in = fig.get_size_inches()
+        lado_h = height * 0.78
+        lado_w = lado_h * fig_h_in / fig_w_in
+        margen = 0.02
+        pos = (1 - margen - lado_w, 1 - height + (height - lado_h) / 2, lado_w, lado_h)
+        # escudos: dibujos planos, no retratos — se leen bien a menor DPI
+        # que una cara, así que el umbral es más laxo que el de _embed_photo.
+        _embed_photo(fig, crest_url, pos, min_dpi=90.0)
 
 
 def _section_heading(fig, x: float, y: float, text: str) -> None:
@@ -143,6 +162,7 @@ def player_report_pdf(
     comp_label: str,
     display: str | None = None,
     photo_url: str | None = None,
+    crest_url: str | None = None,
 ) -> bytes:
     """PDF de una página con el informe completo del jugador."""
     viz.use_theme("light")
@@ -175,7 +195,7 @@ def player_report_pdf(
     linea1 = " · ".join(str(v) for v in (prow["team"], posicion) if v)
     linea2 = " · ".join(str(v) for v in (f"{prow['minutes']:.0f} min", comp_label) if v)
 
-    _header_band(fig, display, height=0.035)
+    _header_band(fig, display, height=0.035, crest_url=crest_url)
     # aspecto casi cuadrado (no la franja ancha de antes): menos estiramiento
     # al escalar avatares pequeños, que es lo que más se nota como "borroso"
     foto_ok = _embed_photo(fig, photo_url, (0.06, 0.885, 0.14, 0.075))
@@ -298,7 +318,9 @@ def player_report_pdf(
     return data
 
 
-def ficha_report_pdf(ficha: dict | None, ficha_sm: dict | None, query: str) -> bytes:
+def ficha_report_pdf(
+    ficha: dict | None, ficha_sm: dict | None, query: str, crest_url: str | None = None
+) -> bytes:
     """PDF de una página para un jugador fuera de los open data cargados.
 
     Sin eventos con coordenadas no hay radar, mapas ni encaje — pero la
@@ -319,11 +341,15 @@ def ficha_report_pdf(ficha: dict | None, ficha_sm: dict | None, query: str) -> b
     # usuario "Franculino Djú" frente a un display_name corto de la API)
     nombre = max(candidatos_nombre, key=len) if candidatos_nombre else query
     foto_url = (ficha or {}).get("foto") or (ficha_sm or {}).get("foto")
+    temporadas = (ficha_sm or {}).get("temporadas") or []
+    # se calcula ya para poder colocarla justo bajo la cabecera (ver más abajo),
+    # no donde sobre sitio al final: es lo primero que alguien debería leer.
+    fortalezas, a_vigilar = narrative.season_strengths(temporadas)
 
     fig = plt.figure(figsize=(8.27, 11.69))  # A4 vertical
     fig.set_facecolor(viz.SURFACE)
 
-    _header_band(fig, nombre, height=0.075)
+    _header_band(fig, nombre, height=0.075, crest_url=crest_url)
     foto_ok = _embed_photo(fig, foto_url, (0.06, 0.815, 0.16, 0.1))
     x_text = 0.26 if foto_ok else 0.06
 
@@ -343,6 +369,36 @@ def ficha_report_pdf(ficha: dict | None, ficha_sm: dict | None, query: str) -> b
             y -= 0.03
 
     y = min(y, 0.8) - 0.02  # bajo la foto y el texto de cabecera, sea cual sea su alto real
+
+    # justo bajo la cabecera, no al final donde sobre sitio: es la conclusión
+    # antes que el detalle. Mismo patrón de dos columnas que el informe-CV
+    # (ver player_report_pdf) — hechos directos de las temporadas de arriba,
+    # no un ranking: sin eventos con coordenadas no hay percentiles frente a
+    # rivales. "A vigilar" solo aparece si hay una tendencia negativa real —
+    # no se fuerza como en el informe-CV, aquí no hay percentil de
+    # referencia para decidir qué es "flojo".
+    if fortalezas or a_vigilar:
+        y_top = y
+        _section_heading(fig, 0.06, y_top, "Fortalezas")
+        for i, (titulo, definicion) in enumerate(fortalezas):
+            y_t = y_top - 0.021 - i * 0.033
+            fig.text(0.06, y_t, titulo, fontsize=8.5, color=viz.INK_2, va="top")
+            if definicion:
+                fig.text(
+                    0.06, y_t - 0.013, _truncate(definicion, 68), fontsize=6.5, color=viz.MUTED, va="top"
+                )
+        if a_vigilar:
+            _section_heading(fig, 0.54, y_top, "A vigilar")
+            for i, (titulo, definicion) in enumerate(a_vigilar):
+                y_t = y_top - 0.021 - i * 0.033
+                fig.text(0.54, y_t, titulo, fontsize=8.5, color=viz.INK_2, va="top")
+                if definicion:
+                    fig.text(
+                        0.54, y_t - 0.013, _truncate(definicion, 68), fontsize=6.5, color=viz.MUTED, va="top"
+                    )
+        max_items = max(len(fortalezas), len(a_vigilar), 1)
+        y -= 0.021 + (max_items - 1) * 0.033 + 0.026 + 0.02
+
     fig.text(
         0.06,
         y,
@@ -370,16 +426,6 @@ def ficha_report_pdf(ficha: dict | None, ficha_sm: dict | None, query: str) -> b
     # sin biografía, lo de abajo sube directamente: nada de hueco reservado
     # para una sección que la fuente no tenía.
 
-    temporadas = (ficha_sm or {}).get("temporadas") or []
-    # se calculan ya para reservarles sitio al dimensionar la tabla de abajo:
-    # sin esto, una tabla de 10 temporadas se queda con casi todo el espacio
-    # restante y esta sección (o el pie de página) puede acabar fuera de la hoja.
-    fortalezas, a_vigilar = narrative.season_strengths(temporadas)
-    alto_resumen = (
-        0.021 + (max(len(fortalezas), len(a_vigilar), 1) - 1) * 0.033 + 0.026 + 0.02
-        if (fortalezas or a_vigilar)
-        else 0.0
-    )
     if temporadas:
         _section_heading(fig, 0.06, y, "Estadísticas de temporada (Sportmonks)")
         y -= 0.028
@@ -408,7 +454,7 @@ def ficha_report_pdf(ficha: dict | None, ficha_sm: dict | None, query: str) -> b
                 fila.append(f"{v:.0f}" if isinstance(v, (int, float)) else "—")
             table_data.append(fila)
 
-        alto_tabla = min(0.045 * len(table_data), y - 0.08 - alto_resumen)
+        alto_tabla = min(0.045 * len(table_data), y - 0.08)
         ax = fig.add_axes((0.06, y - alto_tabla, 0.88, alto_tabla))
         ax.axis("off")
         tbl = ax.table(cellText=table_data, loc="center", cellLoc="center")
@@ -437,34 +483,6 @@ def ficha_report_pdf(ficha: dict | None, ficha_sm: dict | None, query: str) -> b
             va="top",
         )
         y -= 0.03
-
-    # fortalezas/a_vigilar ya calculadas arriba (se necesitaban para reservar
-    # su espacio antes de dimensionar la tabla). No es un ranking: sin eventos
-    # con coordenadas no hay percentiles frente a rivales, así que esto son
-    # hechos directos (participación, contribución de gol, titularidad), no
-    # una comparación. "A vigilar" solo aparece si hay una tendencia negativa
-    # real — no se fuerza como en el informe-CV, aquí no hay percentil de
-    # referencia para decidir qué es "flojo".
-    if fortalezas or a_vigilar:
-        y_top = y
-        _section_heading(fig, 0.06, y_top, "Fortalezas")
-        for i, (titulo, definicion) in enumerate(fortalezas):
-            y_t = y_top - 0.021 - i * 0.033
-            fig.text(0.06, y_t, titulo, fontsize=8.5, color=viz.INK_2, va="top")
-            if definicion:
-                fig.text(
-                    0.06, y_t - 0.013, _truncate(definicion, 68), fontsize=6.5, color=viz.MUTED, va="top"
-                )
-        if a_vigilar:
-            _section_heading(fig, 0.54, y_top, "A vigilar")
-            for i, (titulo, definicion) in enumerate(a_vigilar):
-                y_t = y_top - 0.021 - i * 0.033
-                fig.text(0.54, y_t, titulo, fontsize=8.5, color=viz.INK_2, va="top")
-                if definicion:
-                    fig.text(
-                        0.54, y_t - 0.013, _truncate(definicion, 68), fontsize=6.5, color=viz.MUTED, va="top"
-                    )
-        y -= alto_resumen
 
     fig.text(
         0.06,

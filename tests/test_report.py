@@ -202,3 +202,48 @@ def test_ficha_report_pdf_prefiere_el_nombre_mas_completo():
     ficha_sm = {"nombre": "Franculino", "temporadas": []}
     pdf = report.ficha_report_pdf(None, ficha_sm, "Franculino Djú")
     assert pdf[:5] == b"%PDF-"
+
+
+def test_header_band_incrusta_escudo_si_hay_url(monkeypatch):
+    monkeypatch.setattr(report.photos, "fetch_bytes", lambda url: _png_de(300, 300))
+    fig = plt.figure(figsize=(8.27, 11.69))
+    try:
+        n_antes = len(fig.axes)
+        report._header_band(fig, "Título", height=0.075, crest_url="https://img/escudo.png")
+        assert len(fig.axes) == n_antes + 2  # la franja de color + el escudo
+    finally:
+        plt.close(fig)
+
+
+def test_header_band_sin_url_no_anade_ejes_de_escudo():
+    fig = plt.figure(figsize=(8.27, 11.69))
+    try:
+        report._header_band(fig, "Título", height=0.075)
+        assert len(fig.axes) == 1  # solo la franja
+    finally:
+        plt.close(fig)
+
+
+def test_header_band_escudo_caido_no_revienta(monkeypatch):
+    monkeypatch.setattr(report.photos, "fetch_bytes", lambda url: None)
+    fig = plt.figure(figsize=(8.27, 11.69))
+    try:
+        report._header_band(fig, "Título", height=0.075, crest_url="https://img/caido.png")
+        assert len(fig.axes) == 1  # sin descarga, sin eje extra
+    finally:
+        plt.close(fig)
+
+
+def test_player_report_pdf_con_escudo_no_revienta(monkeypatch):
+    monkeypatch.setattr(report.photos, "fetch_bytes", lambda url: _png_de(300, 300))
+    pdf = report.player_report_pdf(
+        tabla(), eventos(), "Jugadora Test", "Competición Test", crest_url="https://img/escudo.png"
+    )
+    assert pdf[:5] == b"%PDF-"
+
+
+def test_ficha_report_pdf_con_escudo_no_revienta(monkeypatch):
+    monkeypatch.setattr(report.photos, "fetch_bytes", lambda url: _png_de(300, 300))
+    ficha_sm = {"nombre": "Franculino", "temporadas": []}
+    pdf = report.ficha_report_pdf(None, ficha_sm, "Franculino Djú", crest_url="https://img/escudo.png")
+    assert pdf[:5] == b"%PDF-"
