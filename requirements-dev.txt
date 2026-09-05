@@ -47,7 +47,7 @@ exceptiongroup==1.3.1 ; python_full_version < '3.11'
     #   anyio
     #   cattrs
     #   pytest
-filelock==3.32.4
+filelock==3.32.5
     # via
     #   python-discovery
     #   virtualenv
