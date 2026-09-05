@@ -279,6 +279,29 @@ def etiqueta_realismo(mejora_puesto: float) -> str:
     return ""
 
 
+# Clubes con una política de fichajes pública y conocida que ningún dato de
+# rendimiento puede reflejar (StatsBomb open data no trae cantera, nacionalidad
+# ni lugar de formación). No se intenta adivinar qué jugadores la cumplirían
+# — eso sería inventar datos — solo se avisa de que el ranking la ignora.
+RESTRICCIONES_CLUB = {
+    "Athletic Club": "solo ficha jugadores formados en canteras vascas",
+}
+
+
+def restriccion_conocida(equipo: str) -> str | None:
+    """Aviso de política de fichajes de `equipo`, si la hay; None si no aplica."""
+    return RESTRICCIONES_CLUB.get(equipo)
+
+
+def _con_restriccion(texto: str, equipo: str) -> str:
+    """Añade la política de fichajes del club destino al aviso de realismo, si la hay."""
+    restriccion = RESTRICCIONES_CLUB.get(equipo)
+    if not restriccion:
+        return texto
+    aviso = f"Política del club: {restriccion}"
+    return f"{texto} · {aviso}" if texto else aviso
+
+
 def _combine(estilo: pd.Series, mejora: pd.Series, w_estilo: float = 0.5) -> pd.Series:
     """Encaje 0-100: percentil de la combinación ponderada de componentes estandarizados."""
     w = min(max(float(w_estilo), 0.0), 1.0)
@@ -325,7 +348,9 @@ def teams_for_player(
         )
     out = pd.DataFrame(rows)
     out["encaje"] = _combine(out["estilo"], out["mejora_puesto"], w_estilo)
-    out["realismo"] = out["mejora_puesto"].map(etiqueta_realismo)
+    out["realismo"] = [
+        _con_restriccion(etiqueta_realismo(m), t) for m, t in zip(out["mejora_puesto"], out["team"])
+    ]
     return out.sort_values("encaje", ascending=False).reset_index(drop=True)
 
 
@@ -387,5 +412,5 @@ def players_for_team(
         out = out[out["position_group"] == group]
     out = out.copy()
     out["encaje"] = _combine(out["estilo"], out["mejora_puesto"], w_estilo)
-    out["realismo"] = out["mejora_puesto"].map(etiqueta_realismo)
+    out["realismo"] = out["mejora_puesto"].map(etiqueta_realismo).map(lambda t: _con_restriccion(t, team))
     return out.sort_values("encaje", ascending=False).reset_index(drop=True)

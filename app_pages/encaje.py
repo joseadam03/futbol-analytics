@@ -14,6 +14,8 @@ PPDA_DEF = (
 
 def _con_icono_realismo(texto: str) -> str:
     """Solo para mostrar en pantalla — el CSV exporta el texto plano de `fit.py`."""
+    if "Política del club" in texto:
+        return f"🚫 {texto}"
     if texto.startswith("Sobrecualificado"):
         return f"⚠️ {texto}"
     if texto:
@@ -86,7 +88,11 @@ with tab_destinos:
     st.markdown(f"#### ¿A qué equipos les encaja **{ctx['display']}**?")
     destinos = fit.teams_for_player(table, events, ctx["player"], w_estilo, axis_weights)
 
-    view = destinos.copy()
+    es_sobrecualificado = destinos["realismo"].str.startswith("Sobrecualificado") & ~destinos["propio"]
+    destinos_top = destinos[~es_sobrecualificado]
+    destinos_sobra = destinos[es_sobrecualificado]
+
+    view = destinos_top.copy()
     view["team"] = view["team"] + view["propio"].map({True: "  ← su equipo", False: ""})
     view["realismo"] = view["realismo"].map(_con_icono_realismo)
     st.dataframe(
@@ -143,7 +149,29 @@ with tab_destinos:
     )
     boton_csv(destinos, "encaje_destinos.csv", "csv_destinos")
 
-    ajenos = destinos[~destinos["propio"]]
+    if not destinos_sobra.empty:
+        with st.expander(
+            f"⚠️ Destinos de ensueño, fuera de la lista ({len(destinos_sobra)}) — "
+            f"{ctx['display']} está tan por encima de esas plantillas que, en la práctica, "
+            "sería un fichaje improbable"
+        ):
+            st.caption(
+                "Salen de la lista principal para no tapar destinos con más opciones reales: "
+                f"casi cualquier equipo modesto ganaría de estilo con {ctx['display']}, pero eso "
+                "no lo convierte en un fichaje plausible."
+            )
+            vista_sobra = destinos_sobra.head(10).copy()
+            vista_sobra["realismo"] = vista_sobra["realismo"].map(_con_icono_realismo)
+            st.dataframe(
+                vista_sobra[list(TEAM_COLS)].rename(columns=TEAM_COLS),
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Encaje": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.0f")
+                },
+            )
+
+    ajenos = destinos_top[~destinos_top["propio"]]
     if not ajenos.empty:
         top = ajenos.iloc[0]
         motivo = (
@@ -151,16 +179,9 @@ with tab_destinos:
             if abs(top["estilo"]) >= abs(top["mejora_puesto"]) / 50
             else "sobre todo porque **mejora el nivel actual del puesto**"
         )
-        aviso = ""
-        if top["realismo"].startswith("Sobrecualificado"):
-            aviso = (
-                f" Ojo: el nivel de {ctx['display']} está tan por encima de la plantilla actual "
-                "que, en la práctica, sería un fichaje improbable — aparece igual en la lista, "
-                "pero tenlo en cuenta."
-            )
         st.markdown(
             f"**Lectura:** el mejor destino de {ctx['display']} sería **{top['team']}** "
-            f"(encaje {top['encaje']:.0f}), {motivo}.{aviso}"
+            f"(encaje {top['encaje']:.0f}), {motivo}."
         )
         ac.fig_and_download(
             viz.style_map(
@@ -175,6 +196,14 @@ with tab_destinos:
 with tab_fichajes:
     c_equipo, c_grupo, c_maxmin = st.columns([3, 1, 1.3])
     equipo = c_equipo.selectbox("Equipo que ficha", sorted(table["team"].unique()), key="fit_team")
+    _restriccion = fit.restriccion_conocida(equipo)
+    if _restriccion:
+        st.warning(
+            f"🚫 **{equipo}** {_restriccion} — un dato real que estos números no pueden ver "
+            "(no hay cantera ni nacionalidad en StatsBomb open data). El ranking de abajo "
+            "ignora esa política a propósito: léelo como estilo y nivel puros, no como una "
+            "recomendación real para este club."
+        )
     grupo = c_grupo.selectbox("Grupo posicional", ["Todos", "DF", "MF", "FW", "GK"], key="fit_group")
     max_minutos = c_maxmin.number_input(
         "Minutos máx.",
@@ -262,6 +291,9 @@ with tab_fichajes:
     else:
         fichajes["player"] = fichajes["player"].map(display_of).fillna(fichajes["player"])
 
+    es_sobrecualificado = fichajes["realismo"].str.startswith("Sobrecualificado")
+    fichajes_top, fichajes_sobra = fichajes[~es_sobrecualificado], fichajes[es_sobrecualificado]
+
     st.markdown(f"#### Mejores fichajes para **{equipo}** (top 15)")
     cols = ["player", "team"]
     if "competition" in fichajes.columns:
@@ -298,7 +330,7 @@ with tab_fichajes:
         "pressures_p90": "Presiones/90",
         "padj_tack_int_p90": "PAdj E+I/90",
     }
-    vista_fichajes = fichajes.head(15)[cols].copy()
+    vista_fichajes = fichajes_top.head(15)[cols].copy()
     vista_fichajes["realismo"] = vista_fichajes["realismo"].map(_con_icono_realismo)
     st.dataframe(
         vista_fichajes.rename(columns=RENAME_FICHAJES),
@@ -338,23 +370,42 @@ with tab_fichajes:
     )
     boton_csv(fichajes, "encaje_fichajes.csv", "csv_fichajes")
 
-    if not fichajes.empty:
-        top_f = fichajes.iloc[0]
+    if not fichajes_sobra.empty:
+        with st.expander(
+            f"⚠️ Fichajes de ensueño, fuera del top 15 ({len(fichajes_sobra)}) — nivel "
+            "disparado sobre la plantilla actual, fichaje improbable en la práctica"
+        ):
+            st.caption(
+                "Salen del ranking principal para no tapar candidatos con más opciones "
+                "reales: media docena de superestrellas de nivel mundial encajarían de "
+                "estilo en casi cualquier equipo, pero eso no los hace fichajes plausibles."
+            )
+            vista_sobra = fichajes_sobra.head(10)[cols].copy()
+            vista_sobra["realismo"] = vista_sobra["realismo"].map(_con_icono_realismo)
+            st.dataframe(
+                vista_sobra.rename(columns=RENAME_FICHAJES),
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Encaje": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.0f")
+                },
+            )
+
+    if not fichajes_top.empty:
+        top_f = fichajes_top.iloc[0]
         motivo_f = (
             "sobre todo por afinidad de **estilo**"
             if abs(top_f["estilo"]) >= abs(top_f["mejora_puesto"]) / 50
             else "sobre todo porque **mejora el nivel actual del puesto**"
         )
-        aviso_f = ""
-        if str(top_f["realismo"]).startswith("Sobrecualificado"):
-            aviso_f = (
-                f" Ojo: el nivel de {top_f['player']} está tan por encima de la plantilla "
-                f"actual de {equipo} que, en la práctica, sería un fichaje improbable — "
-                "aparece igual en la lista, pero tenlo en cuenta."
-            )
         st.markdown(
             f"**Lectura:** el mejor fichaje para **{equipo}** sería **{top_f['player']}** "
-            f"(encaje {top_f['encaje']:.0f}), {motivo_f}.{aviso_f}"
+            f"(encaje {top_f['encaje']:.0f}), {motivo_f}."
+        )
+    elif not fichajes.empty:
+        st.markdown(
+            "**Lectura:** todos los candidatos con mejor encaje tienen un salto de nivel "
+            "disparado sobre la plantilla actual — mira la sección de fichajes de ensueño de arriba."
         )
 
 with st.expander("Cómo se calcula el encaje (y qué no dice)"):
@@ -376,8 +427,14 @@ with st.expander("Cómo se calcula el encaje (y qué no dice)"):
   del nivel de la plantilla sube el encaje sin límite — aunque en la práctica nadie
   ficha a alguien así de por medio sin que medien sueldo, ambición o nivel de
   competición (datos que no están aquí). Por encima de +25 puntos de percentil se
-  etiqueta "Mejora clara"; por encima de +40, "Sobrecualificado — fichaje
-  improbable en la práctica". La fila no se oculta ni se reordena, solo se avisa.
+  etiqueta "Mejora clara" y se queda en su sitio en el ranking; por encima de +40,
+  "Sobrecualificado — fichaje improbable en la práctica" y **sale del top 15/lista
+  principal** a una sección aparte ("fichajes/destinos de ensueño"), para que unas
+  pocas superestrellas de nivel mundial no tapen candidatos con más opciones reales
+  — sin coste real de por medio, es la mejor aproximación que dan estos datos.
+  Por el mismo motivo, un club con una política de fichajes pública y conocida
+  (p. ej. el Athletic Club solo ficha cantera vasca) también se avisa aquí — no
+  hay cantera ni nacionalidad en los datos para filtrarlo de verdad.
 - **Pool multi-competición**: los percentiles y z-scores viajan con la competición
   de origen de cada jugador; el nivel entre competiciones no se corrige, así que
   el número entre ligas dispares es orientativo.

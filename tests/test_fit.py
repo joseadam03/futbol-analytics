@@ -176,6 +176,19 @@ def test_realismo_aparece_en_destinos_y_fichajes():
     assert fichajes["realismo"].map(lambda t: t == "" or "Mejora" in t or "Sobrecualificado" in t).all()
 
 
+def test_restriccion_conocida_se_combina_con_el_aviso_de_realismo(monkeypatch):
+    monkeypatch.setitem(fit.RESTRICCIONES_CLUB, "A", "solo ficha canteranos")
+    assert fit.restriccion_conocida("A") == "solo ficha canteranos"
+    assert fit.restriccion_conocida("B") is None
+
+    fichajes = fit.players_for_team(tabla_fw(), eventos_dos_estilos(), "A", group="FW")
+    assert (fichajes["realismo"].str.contains("Política del club: solo ficha canteranos")).all()
+
+    destinos = fit.teams_for_player(tabla_fw(), eventos_dos_estilos(), "Pressy")
+    fila_a = destinos[destinos["team"] == "A"].iloc[0]
+    assert "Política del club: solo ficha canteranos" in fila_a["realismo"]
+
+
 def test_squad_level_pondera_por_minutos():
     base = {c: 40.0 for c in fit.GROUP_KEY_PCT["FW"]}
     top = {c: 80.0 for c in fit.GROUP_KEY_PCT["FW"]}
