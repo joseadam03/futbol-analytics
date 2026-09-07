@@ -313,6 +313,11 @@ Lo siguiente, cuando haya ganas:
 - Redes de pases y roles emergentes por clustering
 - Valor añadido por acción (VAEP/xT) sobre el esquema común
 
+## Licencia
+
+Código bajo licencia [MIT](LICENSE) — © Jose Adam Lerín. Los datos de StatsBomb
+mantienen su propia licencia (ver más abajo), independiente del código.
+
 ## Créditos
 
 Datos: StatsBomb open data (uso no comercial, [términos](https://github.com/statsbomb/open-data/blob/master/LICENSE.pdf)).
