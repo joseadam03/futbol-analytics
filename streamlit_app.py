@@ -31,24 +31,34 @@ st.sidebar.title("⚽ Fútbol Analytics")
 st.session_state["ctx"] = ac.sidebar_context()
 
 pages = st.navigation(
-    [
-        st.Page("app_pages/inicio.py", title="Inicio", icon="🏠", default=True),
-        st.Page("app_pages/buscador.py", title="Buscador", icon="🔍"),
-        st.Page("app_pages/filtro.py", title="Filtro avanzado", icon="🎚️"),
-        st.Page("app_pages/jugador.py", title="Jugador", icon="📊"),
-        st.Page("app_pages/comparar.py", title="Comparar", icon="⚔️"),
-        st.Page("app_pages/encaje.py", title="Encaje", icon="🧩"),
-        st.Page("app_pages/equipos.py", title="Equipos", icon="🛡️"),
-        st.Page("app_pages/informe_equipo.py", title="Informe de equipo", icon="📋"),
-        st.Page("app_pages/partido.py", title="Partido", icon="🥅"),
-        st.Page("app_pages/competicion.py", title="Competición", icon="🌍"),
-        st.Page("app_pages/secuencias.py", title="Secuencias", icon="🧵"),
-        st.Page("app_pages/evolucion.py", title="Evolución", icon="📈"),
-        st.Page("app_pages/modelo_xg.py", title="Modelo xG", icon="🎯"),
-        st.Page("app_pages/metodologia.py", title="Metodología", icon="📖"),
-    ],
-    # Streamlit 1.63 colapsa el menú tras 12 páginas ("View 3 more"); con 13
-    # páginas eso escondía Evolución, Modelo xG y Metodología por defecto.
+    # Agrupado por secciones (Streamlit >=1.36) en vez de una lista plana de 14
+    # páginas: con tantas páginas, un solo bloque sin jerarquía es lo que hacía
+    # que el menú se viera anticuado/desordenado — la sección ya cuenta parte
+    # de la historia antes de leer el nombre de cada página.
+    {
+        "": [st.Page("app_pages/inicio.py", title="Inicio", icon="🏠", default=True)],
+        "Jugadores": [
+            st.Page("app_pages/buscador.py", title="Buscador", icon="🔍"),
+            st.Page("app_pages/filtro.py", title="Filtro avanzado", icon="🎚️"),
+            st.Page("app_pages/jugador.py", title="Jugador", icon="📊"),
+            st.Page("app_pages/comparar.py", title="Comparar", icon="⚔️"),
+        ],
+        "Equipos": [
+            st.Page("app_pages/encaje.py", title="Encaje", icon="🧩"),
+            st.Page("app_pages/equipos.py", title="Equipos", icon="🛡️"),
+            st.Page("app_pages/informe_equipo.py", title="Informe de equipo", icon="📋"),
+            st.Page("app_pages/partido.py", title="Partido", icon="🥅"),
+        ],
+        "Competición": [
+            st.Page("app_pages/competicion.py", title="Competición", icon="🌍"),
+            st.Page("app_pages/secuencias.py", title="Secuencias", icon="🧵"),
+            st.Page("app_pages/evolucion.py", title="Evolución", icon="📈"),
+            st.Page("app_pages/modelo_xg.py", title="Modelo xG", icon="🎯"),
+        ],
+        "Ayuda": [st.Page("app_pages/metodologia.py", title="Metodología", icon="📖")],
+    },
+    # Streamlit colapsa el menú a partir de cierto número de páginas ("View X
+    # more"); con 14 páginas eso escondía las últimas por defecto.
     expanded=True,
 )
 pages.run()
