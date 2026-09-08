@@ -70,8 +70,10 @@ página o gráfico nuevo:
   los scripts de `scripts/`), nunca `report.py` en sí.
 - **App Streamlit**: `streamlit_app.py` (sidebar + navegación) +
   `app_common.py` (estado compartido, todo cacheado con `st.cache_data`) +
-  `app_pages/*.py`. Páginas actuales: Inicio, Buscador, Jugador, Comparar,
-  Encaje (fit + centro de fichajes), Equipos, Informe de equipo, **Partido**
+  `app_pages/*.py`. Páginas actuales: Inicio, Buscador, **Filtro avanzado**
+  (cribado por posición + percentiles mínimos, tipo Wyscout/Driblab pero sobre
+  los mismos percentiles que ya calcula el resto de la app), Jugador, Comparar,
+  Encaje (fit + centro de fichajes), Equipos, Informe de equipo, Partido
   (comparación local-visitante, mapa de tiros del partido, top jugadores),
   Competición, Secuencias, Evolución, Modelo xG, Metodología.
 

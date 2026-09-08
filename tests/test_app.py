@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PAGINAS = [
     "inicio",
     "buscador",
+    "filtro",
     "jugador",
     "comparar",
     "encaje",

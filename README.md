@@ -47,6 +47,10 @@ Multipágina, con navegación propia:
   Sportmonks (goles, asistencias, minutos, apariciones — con token configurado),
   botón para descargar esa ficha como **informe-CV en PDF** (foto, biografía y
   estadísticas de temporada) y enlaces para seguir el scouting fuera.
+- **Filtro avanzado** — cribado por posición, equipo y percentil mínimo en
+  varias métricas a la vez (tipo Wyscout/Driblab), sobre los mismos percentiles
+  que ya calcula el resto de la app — no hay modelo nuevo, es un corte sobre el
+  mismo dato. Tabla ordenada por percentil medio y descarga en CSV.
 - **Jugador** — radar de percentiles per-90, mapas de campo (calor de toques,
   pases progresivos/clave, tiros con tamaño ∝ xG), perfiles similares con foto,
   una **lectura en lenguaje llano** generada por reglas sobre los mismos
@@ -235,7 +239,7 @@ cálculos, y los penaltis dentro del juego de las métricas de tiro.
 ```
 streamlit_app.py      # entrada de la app (navegación multipágina)
 app_common.py         # estado compartido: carga de datos, sidebar, descargas
-app_pages/            # Inicio · Buscador · Jugador · Comparar · Encaje · Equipos · Informe de equipo
+app_pages/            # Inicio · Buscador · Filtro avanzado · Jugador · Comparar · Encaje · Equipos · Informe de equipo
                       # Partido · Competición · Secuencias · Evolución · Modelo xG · Metodología
 src/futbol_analytics/
   auth.py             # login opcional (config.yaml); sin él, acceso libre
