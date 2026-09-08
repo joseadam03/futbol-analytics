@@ -34,6 +34,36 @@ def theme() -> str:
     return getattr(getattr(st.context, "theme", None), "type", None) or "light"
 
 
+def inject_css() -> None:
+    """Retoques de estilo sobre el look-and-feel por defecto de Streamlit.
+
+    Solo aditivo (tipografía, radios, espaciado) — nada que dependa de una
+    versión concreta de Streamlit rompe si un selector deja de existir, así
+    que no hace falta version-pinning ni tests para esto. `primaryColor` y
+    la fuente van en `.streamlit/config.toml`; esto es lo que el theme de
+    Streamlit no cubre (tarjetas, cabecera de la sidebar, dataframes).
+    """
+    st.markdown(
+        """
+<style>
+.block-container { padding-top: 2.2rem; padding-bottom: 3rem; }
+section[data-testid="stSidebar"] { border-right: 1px solid rgba(127, 127, 127, 0.15); }
+section[data-testid="stSidebar"] .block-container { padding-top: 1.6rem; }
+div[data-testid="stDataFrame"], div[data-testid="stTable"] { border-radius: 10px; overflow: hidden; }
+div[data-testid="stVerticalBlockBorderWrapper"] { border-radius: 12px; }
+div[data-testid="stMetric"] {
+    background: rgba(127, 127, 127, 0.07);
+    border-radius: 10px;
+    padding: 0.6rem 0.9rem 0.4rem;
+}
+[data-testid="stButton"] button, [data-testid="stDownloadButton"] button { border-radius: 8px; font-weight: 600; }
+h1, h2, h3 { letter-spacing: -0.01em; }
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
+
 @st.cache_data(show_spinner=False)
 def load_competitions(provider_key: str) -> pd.DataFrame:
     comps = get_provider(provider_key).competitions()

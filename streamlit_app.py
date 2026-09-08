@@ -21,6 +21,7 @@ FAVICON = Path(__file__).parent / "docs" / "favicon.png"
 st.set_page_config(
     page_title="Fútbol Analytics", page_icon=str(FAVICON) if FAVICON.exists() else "⚽", layout="wide"
 )
+ac.inject_css()
 
 # Login siempre obligatorio, con usuario demo integrado — ver auth.py.
 if not auth.requiere_login():
