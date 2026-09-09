@@ -186,3 +186,45 @@ def test_season_strengths_limita_a_dos_por_columna():
     ]
     fortalezas, _ = narrative.season_strengths(temporadas)
     assert len(fortalezas) <= 2
+
+
+def _shortlist() -> pd.DataFrame:
+    # ya viene ordenada por percentil medio descendente, como hace filtro.py
+    return pd.DataFrame(
+        {
+            "player": ["Top", "Especialista", "Tercero"],
+            "npxg_p90_pct": [80.0, 95.0, 50.0],
+            "prog_passes_p90_pct": [85.0, 40.0, 60.0],
+        }
+    )
+
+
+def test_shortlist_reading_vacio_sin_filas_o_sin_metricas():
+    assert narrative.shortlist_reading(pd.DataFrame(), ["npxg_p90_pct"], {}) == ""
+    assert narrative.shortlist_reading(_shortlist(), [], {}) == ""
+
+
+def test_shortlist_reading_nombra_al_primero():
+    lectura = narrative.shortlist_reading(
+        _shortlist(),
+        ["npxg_p90_pct", "prog_passes_p90_pct"],
+        {"npxg_p90_pct": "npxG", "prog_passes_p90_pct": "Pases prog."},
+    )
+    assert "**Top**" in lectura
+
+
+def test_shortlist_reading_avisa_si_el_primero_no_lidera_en_todo():
+    lectura = narrative.shortlist_reading(
+        _shortlist(),
+        ["npxg_p90_pct", "prog_passes_p90_pct"],
+        {"npxg_p90_pct": "npxG", "prog_passes_p90_pct": "Pases prog."},
+    )
+    assert "No lidera en todas" in lectura
+    assert "npxG" in lectura and "Especialista" in lectura
+
+
+def test_shortlist_reading_sin_aviso_si_el_primero_lidera_en_todo():
+    df = pd.DataFrame({"player": ["Único"], "npxg_p90_pct": [90.0]})
+    lectura = narrative.shortlist_reading(df, ["npxg_p90_pct"], {"npxg_p90_pct": "npxG"})
+    assert "No lidera en todas" not in lectura
+    assert "también" in lectura.lower()

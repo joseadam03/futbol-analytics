@@ -8,7 +8,7 @@ en conducciones progresivas", no un jugador concreto.
 
 import streamlit as st
 
-from futbol_analytics import viz
+from futbol_analytics import narrative, viz
 
 ctx = st.session_state["ctx"]
 table = ctx["table"]
@@ -77,13 +77,18 @@ elif resultado.empty:
 else:
     vista = resultado.copy()
     vista["player"] = vista["player"].map(display_of).fillna(vista["player"])
+    cols_metricas = list(umbrales)
+
+    lectura = narrative.shortlist_reading(vista, cols_metricas, label_of)
+    if lectura:
+        st.markdown(f"**Lectura:** {lectura}")
+
     rename = {
         "player": "Jugador",
         "team": "Equipo",
         "primary_position": "Posición",
         "minutes": "Minutos",
     }
-    cols_metricas = list(umbrales)
     rename |= {c: f"p {label_of[c]}" for c in cols_metricas}
     tabla = vista[["player", "team", "primary_position", "minutes", *cols_metricas]].rename(columns=rename)
 

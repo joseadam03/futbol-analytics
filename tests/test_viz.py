@@ -70,6 +70,22 @@ def test_radar_compare():
     assert fig is not None
 
 
+@pytest.mark.parametrize("n", [2, 3, 4, 5])
+def test_multi_compare_chart_admite_de_dos_a_cinco(n):
+    filas = [fila_jugador() for _ in range(n)]
+    nombres = [f"Jugador {i}" for i in range(n)]
+    fig = viz.multi_compare_chart(filas, nombres, "Competición Test")
+    assert fig is not None
+
+
+@pytest.mark.parametrize("n", [1, 6])
+def test_multi_compare_chart_rechaza_fuera_de_rango(n):
+    filas = [fila_jugador() for _ in range(n)]
+    nombres = [f"Jugador {i}" for i in range(n)]
+    with pytest.raises(ValueError):
+        viz.multi_compare_chart(filas, nombres, "Competición Test")
+
+
 def test_touch_heatmap():
     fig = viz.touch_heatmap(eventos_minimos(), "Jugadora Test", "Competición Test")
     assert fig is not None

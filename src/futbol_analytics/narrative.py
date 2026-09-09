@@ -189,6 +189,33 @@ def season_strengths(temporadas: list[dict]) -> tuple[list[Rasgo], list[Rasgo]]:
     return fortalezas[:2], a_vigilar[:2]
 
 
+def shortlist_reading(
+    df: pd.DataFrame, metric_cols: list[str], label_of: dict[str, str], name_col: str = "player"
+) -> str:
+    """Lectura de una lista corta ya ordenada (p. ej. el resultado de un filtro):
+    quién lidera en cada métrica exigida, y si el primero de la lista no es
+    quien más destaca en todas ellas por separado.
+
+    `df` debe venir ya ordenada por el criterio que se anuncia como "primero"
+    (percentil medio descendente, como hace `filtro.py`). Determinista sobre
+    las columnas de percentil ya calculadas — nada inventado, cada nombre que
+    aparece se puede comprobar contra la propia tabla.
+    """
+    if df.empty or not metric_cols:
+        return ""
+    primero = str(df.iloc[0][name_col])
+    lideres = {col: str(df.loc[df[col].idxmax(), name_col]) for col in metric_cols if col in df.columns}
+
+    resumen = f"**{primero}** encabeza la lista."
+    distintos = {label_of.get(col, col): nombre for col, nombre in lideres.items() if nombre != primero}
+    if distintos:
+        detalle = "; ".join(f"en {etiqueta} destaca {nombre}" for etiqueta, nombre in distintos.items())
+        resumen += f" No lidera en todas las métricas elegidas — {detalle}."
+    else:
+        resumen += " También es quien más destaca en cada métrica elegida por separado."
+    return resumen
+
+
 def similar_players_note(similar: pd.DataFrame | None) -> str:
     """Frase sobre a qué jugadores se parece, dejando claro que es de estilo, no de nivel."""
     if similar is None or similar.empty:

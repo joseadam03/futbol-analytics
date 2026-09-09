@@ -82,6 +82,30 @@ def test_buscador_sin_token_muestra_la_pista(monkeypatch):
     assert any("SPORTMONKS_API_TOKEN" in c.value for c in at.caption)
 
 
+def test_comparar_con_tres_o_mas_usa_barras_agrupadas():
+    at = _app()
+    table = at.session_state["ctx"]["table"]
+    # el grupo posicional con más jugadores garantiza al menos 2 "compañeros"
+    # para comparar, sin depender de qué jugador venga seleccionado por defecto
+    grupo_grande = table["position_group"].value_counts().idxmax()
+    jugadores_grupo = table[table["position_group"] == grupo_grande]["player"].tolist()
+    assert len(jugadores_grupo) >= 3
+
+    at.selectbox(key="player_sel").set_value(jugadores_grupo[0]).run()
+    at.switch_page("app_pages/comparar.py")
+    at.run()
+    at.multiselect[0].set_value(jugadores_grupo[1:3]).run()
+    assert not at.exception, [str(e.value) for e in at.exception]
+
+
+def test_filtro_muestra_lectura_del_resultado():
+    at = _app()
+    at.switch_page("app_pages/filtro.py")
+    at.run()
+    assert not at.exception, [str(e.value) for e in at.exception]
+    assert any("Lectura:" in m.value for m in at.markdown)
+
+
 def test_buscador_con_sportmonks_muestra_la_tabla_de_temporadas(monkeypatch):
     # nombre de búsqueda propio: st.cache_data es del proceso y no se resetea
     # entre AppTest, así que reutilizar una consulta ya cacheada por otro test

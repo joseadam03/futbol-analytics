@@ -26,6 +26,9 @@ _LIGHT = {
     "BASELINE": "#c3c2b7",
     "BLUE": "#2a78d6",
     "ORANGE": "#eb6834",
+    "AQUA": "#1baf7a",
+    "YELLOW": "#eda100",
+    "MAGENTA": "#e87ba4",
     "RING": "#f0efec",
     "SEQ": ["#fcfcfb", "#cde2fb", "#86b6ef", "#3987e5", "#1c5cab", "#0d366b"],
 }
@@ -38,12 +41,19 @@ _DARK = {
     "BASELINE": "#383835",
     "BLUE": "#3987e5",
     "ORANGE": "#d95926",
+    "AQUA": "#199e70",
+    "YELLOW": "#c98500",
+    "MAGENTA": "#d55181",
     "RING": "#242423",
     "SEQ": ["#1a1a19", "#104281", "#1c5cab", "#3987e5", "#86b6ef", "#cde2fb"],
 }
 
-SURFACE = INK = INK_2 = MUTED = GRID = BASELINE = BLUE = ORANGE = RING = ""
+SURFACE = INK = INK_2 = MUTED = GRID = BASELINE = BLUE = ORANGE = AQUA = YELLOW = MAGENTA = RING = ""
 SEQ_BLUE = None
+# orden fijo de color por serie (identidad, nunca por rango) — mismos 5 primeros
+# slots del método de paleta categórica documentado para el proyecto, ya
+# validados en accesibilidad/daltonismo con este orden concreto
+COMPARE_COLOR_KEYS = ("BLUE", "ORANGE", "AQUA", "YELLOW", "MAGENTA")
 
 
 def use_theme(mode: str = "light") -> None:
@@ -207,6 +217,69 @@ def radar_compare(
         f"{name_a}  vs  {name_b}",
         f"{competition_label}  ·  Percentiles per-90 vs. {pool_label} de la competición",
     )
+    return fig
+
+
+def multi_compare_chart(
+    rows: list[pd.Series],
+    names: list[str],
+    competition_label: str,
+    pool_label: str | None = None,
+):
+    """Comparación de 3 a 5 jugadores: una fila por métrica, una barra por jugador.
+
+    Pasados los dos jugadores de `radar_compare`, un radar superpuesto deja de
+    leerse (demasiados polígonos encima) — aquí cada jugador tiene su propio
+    color fijo (mismo orden en todas las filas, nunca reasignado por rango) y
+    su barra en cada métrica, en vez de forzar un radar con más series de las
+    que aguanta.
+    """
+    n = len(rows)
+    if not 2 <= n <= 5:
+        raise ValueError("multi_compare_chart admite entre 2 y 5 jugadores")
+    import matplotlib.patches as mpatches
+
+    group = rows[0]["position_group"]
+    pool_label = pool_label or group
+    metrics = RADAR_METRICS.get(group, RADAR_METRICS["MF"])
+    params = [label.replace("\n", " ") for _, label in metrics]
+    colors = [globals()[key] for key in COMPARE_COLOR_KEYS[:n]]
+
+    m = len(params)
+    fig, ax = plt.subplots(figsize=(9, 2.6 + 0.55 * m))
+    fig.set_facecolor(SURFACE)
+    ax.set_facecolor(SURFACE)
+
+    bar_h = 0.8 / n
+    y_base = list(range(m))
+    for i, (row, color) in enumerate(zip(rows, colors)):
+        values = [float(row[col]) for col, _ in metrics]
+        offsets = [y + (i - (n - 1) / 2) * bar_h for y in y_base]
+        ax.barh(offsets, values, height=bar_h * 0.85, color=color, alpha=0.85)
+
+    ax.set_yticks(y_base)
+    ax.set_yticklabels(params, fontsize=9.5, color=INK)
+    ax.set_xlim(0, 100)
+    ax.set_xlabel("Percentil en la competición", fontsize=9, color=INK_2)
+    ax.tick_params(colors=MUTED, labelsize=9)
+    for spine in ax.spines.values():
+        spine.set_color(GRID)
+    ax.grid(axis="x", color=GRID, linewidth=0.6, alpha=0.6)
+    ax.invert_yaxis()  # primera métrica arriba, como en el resto de gráficos
+
+    ax.legend(
+        handles=[mpatches.Patch(color=c, alpha=0.85, label=nm) for c, nm in zip(colors, names)],
+        loc="upper right",
+        fontsize=9,
+        frameon=False,
+        labelcolor=INK_2,
+    )
+    _header(
+        fig,
+        f"Comparación de {n} jugadores",
+        f"{competition_label}  ·  Percentiles per-90 vs. {pool_label} de la competición",
+    )
+    fig.subplots_adjust(top=0.82, left=0.3)
     return fig
 
 
