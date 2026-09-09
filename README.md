@@ -96,14 +96,21 @@ docker build -t futbol-analytics .
 docker run -p 8501:8501 futbol-analytics
 ```
 
-### Login opcional
+### Login
 
-Sin configuración, la app es de acceso libre (así siguen funcionando `make
-demo`/`make run` y los tests). Para exigir usuario y contraseña en un
-despliegue propio, copia `config.example.yaml` a `config.yaml` (no se
-versiona) y añade un usuario por persona con su contraseña ya hasheada
-(`python scripts/hash_password.py` genera el hash; nunca se guarda la
-contraseña en texto plano). La pantalla de login usa
+Siempre pide usuario y contraseña — sin configurar nada hay una cuenta demo
+integrada (`demo` / `demo1234`, se enseña en la propia pantalla de login) con
+la liga sintética. Para entrar con tus propios datos (StatsBomb real, o
+Wyscout con tus claves), créate una cuenta:
+
+```bash
+python scripts/crear_usuario.py
+```
+
+Pide usuario, nombre, email y contraseña, y crea o actualiza `config.yaml`
+(no se versiona) por ti — sin copiar ficheros ni editar YAML a mano. La
+contraseña nunca se guarda en texto plano, solo su hash bcrypt. La pantalla
+de login usa
 [streamlit-authenticator](https://github.com/mkhorasani/Streamlit-Authenticator).
 
 ## El CLI
@@ -262,7 +269,8 @@ scripts/
   player_report.py    # CLI: informe estático de un jugador (PNGs, CSVs y PDF)
   warm_cache.py       # precalienta la caché de una competición
   verify_wyscout.py   # verifica el mapeo de Wyscout contra un partido real
-  hash_password.py    # genera el hash bcrypt de una contraseña para config.yaml
+  crear_usuario.py    # crea/actualiza un usuario en config.yaml (recomendado)
+  hash_password.py    # solo el hash bcrypt, para quien prefiera editar config.yaml a mano
 tests/                # unitarios, de humo y de interfaz (AppTest) — siempre sin red
 .github/workflows/    # CI: lint+formato, tipos, auditoría, tests, Docker y publicación
 Dockerfile            # imagen multi-stage, usuario sin privilegios, healthcheck

@@ -39,9 +39,11 @@ def inject_css() -> None:
 
     Solo aditivo (tipografía, radios, espaciado) — nada que dependa de una
     versión concreta de Streamlit rompe si un selector deja de existir, así
-    que no hace falta version-pinning ni tests para esto. `primaryColor` y
-    la fuente van en `.streamlit/config.toml`; esto es lo que el theme de
-    Streamlit no cubre (tarjetas, cabecera de la sidebar, dataframes).
+    que no hace falta version-pinning ni tests para esto. A propósito no hay
+    ningún `[theme]` en `.streamlit/config.toml`: definir uno (aunque sea
+    solo `primaryColor`) le quita a Streamlit el selector de tema y lo deja
+    fijo en claro, perdiendo el modo oscuro automático — se comprobó en un
+    navegador real, no es una suposición.
     """
     st.markdown(
         """
