@@ -58,6 +58,15 @@ div[data-testid="stMetric"] {
 }
 [data-testid="stButton"] button, [data-testid="stDownloadButton"] button { border-radius: 8px; font-weight: 600; }
 h1, h2, h3 { letter-spacing: -0.01em; }
+[data-testid="stNavSectionHeader"] p {
+    font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; color: rgba(127, 127, 127, 0.85);
+}
+[data-testid="stSidebarNavLink"] { border-radius: 8px; margin: 1px 6px; }
+[data-testid="stSidebarNavLink"][aria-current="page"] {
+    background: rgba(42, 120, 214, 0.12); border-left: 3px solid #2a78d6;
+}
+[data-testid="stSidebarNavLink"][aria-current="page"] p { color: #2a78d6; font-weight: 700; }
 </style>
 """,
         unsafe_allow_html=True,
