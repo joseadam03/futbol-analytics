@@ -15,26 +15,15 @@ Uso:
 
 from __future__ import annotations
 
-import secrets
 from getpass import getpass
 
 import streamlit_authenticator as stauth
-import yaml
 
-from futbol_analytics.auth import CONFIG_PATH
+from futbol_analytics.auth import CONFIG_PATH, cargar_config, guardar_config
 
 
 def main() -> None:
-    config: dict = {}
-    if CONFIG_PATH.exists():
-        with CONFIG_PATH.open(encoding="utf-8") as f:
-            config = yaml.safe_load(f) or {}
-
-    config.setdefault("credentials", {}).setdefault("usernames", {})
-    config.setdefault(
-        "cookie",
-        {"name": "futbol_analytics_auth", "key": secrets.token_hex(32), "expiry_days": 30},
-    )
+    config = cargar_config()
 
     username = input("Usuario (sin espacios): ").strip()
     if not username:
@@ -53,8 +42,7 @@ def main() -> None:
         "password": stauth.Hasher.hash(password),
     }
 
-    with CONFIG_PATH.open("w", encoding="utf-8") as f:
-        yaml.safe_dump(config, f, allow_unicode=True)
+    guardar_config(config)
 
     print(f"\nListo — usuario «{username}» guardado en {CONFIG_PATH}.")
     print("Arranca la app (run_windows.bat o `make run`) y entra con ese usuario y contraseña.")

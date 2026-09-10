@@ -1,8 +1,13 @@
 # Copia este fichero a config.yaml (no se versiona) para añadir usuarios
 # propios. El login siempre está activo (ver auth.py): sin config.yaml solo
-# existe la cuenta de demo integrada (`demo` / `demo1234`, liga sintética);
-# lo que pongas aquí se AÑADE a esa demo, no la sustituye. Genera el hash de
-# cada contraseña con:
+# existen las cuentas integradas `demo` / `demo1234` (liga sintética) y
+# `admin` / `admin` (contraseña de fábrica: la app obliga a cambiarla en el
+# primer login); lo que pongas aquí se AÑADE a esas dos, no las sustituye.
+#
+# La forma más fácil de crear un usuario ya no es este fichero: entra como
+# admin y usa el panel Admin de la propia app. Esto sigue sirviendo para
+# quien prefiera la terminal o editar YAML a mano — genera el hash de cada
+# contraseña con:
 #
 #   python scripts/hash_password.py
 #

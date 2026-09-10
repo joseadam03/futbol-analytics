@@ -98,10 +98,20 @@ docker run -p 8501:8501 futbol-analytics
 
 ### Login
 
-Siempre pide usuario y contraseña — sin configurar nada hay una cuenta demo
-integrada (`demo` / `demo1234`, se enseña en la propia pantalla de login) con
-la liga sintética. Para entrar con tus propios datos (StatsBomb real, o
-Wyscout con tus claves), créate una cuenta:
+Siempre pide usuario y contraseña — sin configurar nada hay dos cuentas
+integradas:
+
+- `demo` / `demo1234` (se enseña en la propia pantalla de login): liga
+  sintética, para entrar sin pedirle a nadie que configure nada.
+- `admin` / `admin`: contraseña de fábrica pensada para cambiarse en el
+  primer login — la app bloquea el resto hasta que se cambia. Una vez
+  cambiada, desbloquea la página **Admin**, un panel para crear cuentas
+  nuevas con un formulario, sin tocar YAML ni la terminal.
+
+Para entrar con tus propios datos (StatsBomb real, o Wyscout con tus
+claves), lo más rápido es que alguien con la cuenta admin te cree un usuario
+desde el panel **Admin** de la propia app. Como alternativa desde la
+terminal:
 
 ```bash
 python scripts/crear_usuario.py

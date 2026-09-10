@@ -27,6 +27,31 @@ def _app() -> AppTest:
     return AppTest.from_file(str(ROOT / "streamlit_app.py"), default_timeout=180)
 
 
+def _login(at: AppTest, username: str, password: str) -> AppTest:
+    """Login normal (usuario/contraseña ya conocidos) + un `run()` extra.
+
+    Tras un login válido, streamlit-authenticator solo deja de redibujar su
+    propio formulario Usuario/Contraseña en el SIGUIENTE render (el
+    `st.rerun()` interno no siempre dispara dentro del propio `run()` de
+    AppTest) — este segundo `run()` lo asienta, para no confundir esos
+    campos con los de un formulario distinto que se muestre a continuación
+    (p. ej. el de cambio de contraseña del admin).
+    """
+    at.text_input[0].set_value(username)
+    at.text_input[1].set_value(password)
+    at.button[0].click().run()
+    at.run()
+    return at
+
+
+def _campo(at: AppTest, etiqueta: str):
+    return next(ti for ti in at.text_input if ti.label == etiqueta)
+
+
+def _boton(at: AppTest, etiqueta: str):
+    return next(b for b in at.button if b.label == etiqueta)
+
+
 def _config_con_usuario(tmp_path: Path, password: str) -> Path:
     config = {
         "credentials": {
@@ -41,6 +66,25 @@ def _config_con_usuario(tmp_path: Path, password: str) -> Path:
         "cookie": {"name": "test_auth", "key": "clave-de-test", "expiry_days": 1},
     }
     path = tmp_path / "config.yaml"
+    path.write_text(yaml.safe_dump(config))
+    return path
+
+
+def _config_con_usuario_admin(tmp_path: Path, password: str, path: Path | None = None) -> Path:
+    """`config.yaml` con la cuenta admin ya con contraseña propia (no la de fábrica)."""
+    config = {
+        "credentials": {
+            "usernames": {
+                auth.ADMIN_USER: {
+                    "email": "admin@example.com",
+                    "name": "Admin",
+                    "password": stauth.Hasher.hash(password),
+                }
+            }
+        },
+        "cookie": {"name": "test_auth", "key": "clave-de-test", "expiry_days": 1},
+    }
+    path = path or tmp_path / "config.yaml"
     path.write_text(yaml.safe_dump(config))
     return path
 
@@ -132,6 +176,107 @@ def test_usuario_con_provider_fake_forzado_lo_preselecciona(monkeypatch, tmp_pat
     at.button[0].click().run()
     assert not at.exception, [str(e.value) for e in at.exception]
     assert at.session_state["ctx"]["provider_key"] == "fake"
+
+
+def test_admin_con_password_de_fabrica_bloquea_el_resto_de_la_app(monkeypatch, tmp_path):
+    monkeypatch.setattr(auth, "CONFIG_PATH", tmp_path / "no-existe.yaml")
+    at = _app()
+    at.run()
+    at.text_input[0].set_value(auth.ADMIN_USER)
+    at.text_input[1].set_value(auth.ADMIN_DEFAULT_PASSWORD)
+    at.button[0].click().run()
+    assert not at.exception, [str(e.value) for e in at.exception]
+    assert "ctx" not in at.session_state
+    assert any("fábrica" in w.value for w in at.warning)
+
+
+def test_cambiar_la_password_de_fabrica_del_admin_persiste_y_desbloquea(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    monkeypatch.setattr(auth, "CONFIG_PATH", config_path)
+    at = _app()
+    at.run()
+    _login(at, auth.ADMIN_USER, auth.ADMIN_DEFAULT_PASSWORD)
+    assert not at.exception, [str(e.value) for e in at.exception]
+
+    _campo(at, "Contraseña actual").set_value(auth.ADMIN_DEFAULT_PASSWORD)
+    _campo(at, "Contraseña nueva").set_value("Otra-Clave-9!")
+    _campo(at, "Repite la contraseña nueva").set_value("Otra-Clave-9!")
+    _boton(at, "Cambiar contraseña").click().run()
+    assert not at.exception, [str(e.value) for e in at.exception]
+    assert at.session_state["ctx"]["provider_key"] == "fake"
+
+    assert config_path.exists()
+    guardado = yaml.safe_load(config_path.read_text())
+    admin_guardado = guardado["credentials"]["usernames"][auth.ADMIN_USER]
+    assert (
+        admin_guardado["password"]
+        != auth.DEFAULT_CONFIG["credentials"]["usernames"][auth.ADMIN_USER]["password"]
+    )
+    # La primera escritura real también renueva la clave de firma de la
+    # cookie — sigue siendo la de fábrica (pública en el repo) hasta ese
+    # momento, ver auth.guardar_config.
+    assert guardado["cookie"]["key"] != auth.DEFAULT_CONFIG["cookie"]["key"]
+
+
+def test_admin_con_password_ya_cambiada_no_bloquea(monkeypatch, tmp_path):
+    monkeypatch.setattr(auth, "CONFIG_PATH", _config_con_usuario_admin(tmp_path, "otra-clave"))
+    at = _app()
+    at.run()
+    _login(at, auth.ADMIN_USER, "otra-clave")
+    assert not at.exception, [str(e.value) for e in at.exception]
+    assert at.session_state["ctx"]["provider_key"] == "fake"
+
+
+def test_nav_no_registra_la_pagina_admin_para_quien_no_es_admin(monkeypatch, tmp_path):
+    monkeypatch.setattr(auth, "CONFIG_PATH", tmp_path / "no-existe.yaml")
+    at = _app()
+    at.run()
+    at.text_input[0].set_value(auth.DEMO_USER)
+    at.text_input[1].set_value(auth.DEMO_PASSWORD)
+    at.button[0].click().run()
+    assert not at.exception, [str(e.value) for e in at.exception]
+
+    with pytest.raises(ValueError):
+        at.switch_page("app_pages/admin.py")
+
+
+def test_pagina_admin_bloqueada_por_si_misma_para_quien_no_es_admin():
+    # Guarda propia de admin.py, aparte de que la navegación ya no la
+    # registre para quien no es admin (test anterior) — comprobada cargando
+    # la página directamente, como el patrón "mini_app" de más abajo.
+    at = AppTest.from_file(str(ROOT / "app_pages" / "admin.py"), default_timeout=60)
+    at.session_state["username"] = auth.DEMO_USER
+    at.run()
+    assert not at.exception, [str(e.value) for e in at.exception]
+    assert any("solo para la cuenta admin" in e.value for e in at.error)
+    assert not at.subheader
+
+
+def test_pagina_admin_crea_usuario_y_persiste(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    monkeypatch.setattr(
+        auth, "CONFIG_PATH", _config_con_usuario_admin(tmp_path, "otra-clave", path=config_path)
+    )
+    at = _app()
+    at.run()
+    _login(at, auth.ADMIN_USER, "otra-clave")
+    assert not at.exception, [str(e.value) for e in at.exception]
+
+    at.switch_page("app_pages/admin.py")
+    at.run()
+    assert not at.exception, [str(e.value) for e in at.exception]
+    assert any(s.value == "Usuarios actuales" for s in at.subheader)
+
+    _campo(at, "Nombre a mostrar").set_value("Nueva Persona")
+    _campo(at, "Email").set_value("nueva@example.com")
+    _campo(at, "Usuario (sin espacios)").set_value("nueva_persona")
+    _campo(at, "Contraseña").set_value("clave-nueva-1234")
+    _campo(at, "Repite la contraseña").set_value("clave-nueva-1234")
+    _boton(at, "Crear usuario").click().run()
+    assert not at.exception, [str(e.value) for e in at.exception]
+
+    guardado = yaml.safe_load(config_path.read_text())
+    assert "nueva_persona" in guardado["credentials"]["usernames"]
 
 
 def test_usuario_con_claves_wyscout_propias_se_inyectan_en_su_sesion(monkeypatch, tmp_path):

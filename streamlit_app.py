@@ -30,6 +30,10 @@ if not auth.requiere_login():
 st.sidebar.title("⚽ Fútbol Analytics")
 st.session_state["ctx"] = ac.sidebar_context()
 
+ayuda_pages = [st.Page("app_pages/metodologia.py", title="Metodología", icon="📖")]
+if st.session_state.get("username") == auth.ADMIN_USER:
+    ayuda_pages.append(st.Page("app_pages/admin.py", title="Admin", icon="🛠️"))
+
 pages = st.navigation(
     # Agrupado por secciones (Streamlit >=1.36) en vez de una lista plana de 14
     # páginas: con tantas páginas, un solo bloque sin jerarquía es lo que hacía
@@ -55,7 +59,7 @@ pages = st.navigation(
             st.Page("app_pages/evolucion.py", title="Evolución", icon="📈"),
             st.Page("app_pages/modelo_xg.py", title="Modelo xG", icon="🎯"),
         ],
-        "Ayuda": [st.Page("app_pages/metodologia.py", title="Metodología", icon="📖")],
+        "Ayuda": ayuda_pages,
     },
     # Streamlit colapsa el menú a partir de cierto número de páginas ("View X
     # more"); con 14 páginas eso escondía las últimas por defecto.
