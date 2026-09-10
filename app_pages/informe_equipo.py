@@ -112,10 +112,13 @@ if _restriccion:
         "esa política a propósito: léela como estilo y nivel puros, no como una "
         "recomendación real para este club."
     )
-fichajes = fit.players_for_team(ctx["table"], ctx["events"], equipo)
-# igual que en Encaje: un fichaje muy sobrecualificado (Messi a un equipo modesto) no
-# es una recomendación real de mercado, así que no compite por hueco en el top 5
-fichajes = fichajes[~fichajes["realismo"].str.startswith("Sobrecualificado")]
+fuerza = tm.team_strength(
+    ac.load_matches(ctx["provider_key"], int(ctx["comp"]["competition_id"]), int(ctx["comp"]["season_id"]))
+)
+fichajes = fit.players_for_team(ctx["table"], ctx["events"], equipo, team_strength=fuerza)
+# igual que en Encaje: un fichaje improbable en la práctica (nivel disparado sobre la
+# plantilla, o de un club mucho más fuerte que el destino) no compite por hueco en el top 5
+fichajes = fichajes[~fichajes["realismo"].str.startswith(fit.REALISMO_PREFIJO_IMPROBABLE)]
 if "nickname" in fichajes.columns:
     fichajes["player"] = (
         fichajes["player"].map(ctx["display_of"]).fillna(fichajes["nickname"]).fillna(fichajes["player"])

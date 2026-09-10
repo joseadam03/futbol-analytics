@@ -3,7 +3,13 @@
 import pandas as pd
 import pytest
 
-from futbol_analytics.teams import match_summary, team_metrics, team_style_metrics, team_style_percentiles
+from futbol_analytics.teams import (
+    match_summary,
+    team_metrics,
+    team_strength,
+    team_style_metrics,
+    team_style_percentiles,
+)
 
 
 def _event(team, type_, x=60.0, **kw):
@@ -162,3 +168,45 @@ def test_percentiles_de_estilo_invierten_el_ppda():
     # A presiona más (PPDA más bajo) -> percentil de presión más alto
     assert pct.loc["A", "ppda"] < pct.loc["B", "ppda"]
     assert pct.loc["A", "ppda_pct"] > pct.loc["B", "ppda_pct"]
+
+
+def _match(home, away, hs, aw):
+    return {"home_team": home, "away_team": away, "home_score": hs, "away_score": aw}
+
+
+def test_team_strength_ordena_por_puntos_por_partido():
+    matches = pd.DataFrame(
+        [
+            _match("PSG", "Niza", 3, 0),
+            _match("Lyon", "PSG", 0, 2),
+            _match("PSG", "Metz", 1, 1),
+            _match("Niza", "Metz", 0, 0),
+            _match("Lyon", "Metz", 1, 2),
+        ]
+    )
+    fuerza = team_strength(matches)
+    # PSG: 2V 1E de 3 = 7 puntos / 3 partidos, el mejor registro con diferencia
+    assert fuerza["PSG"] == fuerza.max()
+    assert fuerza["PSG"] > fuerza["Lyon"]
+    assert fuerza["PSG"] > fuerza["Niza"]
+
+
+def test_team_strength_ignora_partidos_sin_marcador():
+    matches = pd.DataFrame(
+        [
+            _match("A", "B", 2, 0),
+            {"home_team": "C", "away_team": "D", "home_score": None, "away_score": None},
+        ]
+    )
+    fuerza = team_strength(matches)
+    assert "A" in fuerza.index and "B" in fuerza.index
+    assert "C" not in fuerza.index and "D" not in fuerza.index
+
+
+def test_team_strength_vacio_sin_columnas_de_marcador():
+    sin_marcador = pd.DataFrame([{"home_team": "A", "away_team": "B"}])
+    fuerza = team_strength(sin_marcador)
+    assert fuerza.empty
+    assert fuerza.index.name == "team"
+
+    assert team_strength(pd.DataFrame()).empty

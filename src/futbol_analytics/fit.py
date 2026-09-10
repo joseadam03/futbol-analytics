@@ -39,6 +39,16 @@ no están aquí y que no se van a inventar. `etiqueta_realismo` avisa de
 esto sobre el mismo dato ya calculado, sin ocultar la fila ni tocar el
 orden: la app decide qué hacer con el aviso.
 
+`mejora_puesto` por sí solo se salta un caso real: un jugador de control
+(mucho pase, poco volumen ofensivo) de un club muy superior puede no
+puntuar muy por encima del puesto en sus métricas per-90, y aun así ser
+un fichaje descartado en la práctica solo por el club del que viene — un
+Verratti o un Fabián Ruiz no salen del PSG hacia un recién ascendido por
+mucho que sus números encajen. Para eso, si se pasa `team_strength` (ver
+`teams.team_strength`: puntos por partido reales, no inventados, de los
+resultados ya cargados), `etiqueta_realismo` también avisa cuando el club
+de origen es mucho más fuerte que el destino, aparte de mejora_puesto.
+
 Si la tabla trae una columna ``competition`` (pool multi-competición),
 los z-scores y niveles se calculan dentro de la competición de origen de
 cada jugador: comparar percentiles entre competiciones de nivel dispar
@@ -269,14 +279,73 @@ def competition_offsets(
 REALISMO_MEJORA_CLARA = 25.0
 REALISMO_SOBRECUALIFICADO = 40.0
 
+# umbral sobre `fuerza_gap` (percentil de fuerza del club de origen del
+# jugador menos el del club destino, ver teams.team_strength): un jugador de
+# un club muy superior rara vez se mueve a uno mucho más débil sin que medien
+# sueldo o ambición — datos que no están aquí. A diferencia de mejora_puesto
+# (rendimiento sobre el campo), esto usa la fuerza REAL de los clubes
+# (puntos por partido en resultados ya cargados), así que atrapa casos que
+# mejora_puesto por sí solo se salta: un centrocampista de control de un
+# equipo top puede no puntuar muy por encima del puesto en sus métricas
+# per-90 y aun así ser un fichaje descartado en la práctica por el club del
+# que viene.
+REALISMO_CLUB_ORIGEN = 35.0
 
-def etiqueta_realismo(mejora_puesto: float) -> str:
-    """Traduce el salto de nivel a un aviso legible; vacío si el salto es razonable."""
+# Prefijo estable del aviso "fichaje descartado en la práctica" — la app lo usa
+# para filtrar filas (ver es_improbable) sin acoplarse al texto exacto entre
+# paréntesis, que varía según el motivo.
+REALISMO_PREFIJO_IMPROBABLE = "Fichaje improbable en la práctica"
+
+
+def etiqueta_realismo(mejora_puesto: float, fuerza_gap: float = 0.0) -> str:
+    """Traduce el salto de nivel y la fuerza relativa de los clubes a un aviso legible.
+
+    `fuerza_gap`: 0.0 cuando no hay resultados reales para estimar la fuerza
+    de alguno de los dos clubes (ver `teams.team_strength`) — sin señal, no
+    penaliza. Vacío si ninguna de las dos condiciones se cumple.
+    """
+    motivos = []
     if mejora_puesto > REALISMO_SOBRECUALIFICADO:
-        return "Sobrecualificado — fichaje improbable en la práctica"
+        motivos.append("nivel muy por encima del puesto")
+    if fuerza_gap > REALISMO_CLUB_ORIGEN:
+        motivos.append("club de origen mucho más fuerte")
+    if motivos:
+        return f"{REALISMO_PREFIJO_IMPROBABLE} ({', '.join(motivos)})"
     if mejora_puesto > REALISMO_MEJORA_CLARA:
         return "Mejora clara"
     return ""
+
+
+def es_improbable(realismo: str) -> bool:
+    """True si el aviso de Realismo marca el fichaje como improbable en la práctica."""
+    return realismo.startswith(REALISMO_PREFIJO_IMPROBABLE)
+
+
+def _fuerza(team_strength: pd.Series, key_prefix: tuple, team: str) -> float | None:
+    """Fuerza de `team` (percentil), o None si no hay resultados reales para él."""
+    if team_strength is None or team_strength.empty:
+        return None
+    clave = (*key_prefix, team) if key_prefix else team
+    if clave in team_strength.index:
+        return float(team_strength.loc[clave])
+    return None
+
+
+def _fuerza_gap(
+    team_strength: pd.Series | None,
+    origen_key: tuple,
+    origen_team: str,
+    destino_key: tuple,
+    destino_team: str,
+) -> float:
+    """Fuerza del club de origen menos la del destino; 0.0 si falta alguna de las dos."""
+    if team_strength is None:
+        return 0.0
+    f_origen = _fuerza(team_strength, origen_key, origen_team)
+    f_destino = _fuerza(team_strength, destino_key, destino_team)
+    if f_origen is None or f_destino is None:
+        return 0.0
+    return f_origen - f_destino
 
 
 # Clubes con una política de fichajes pública y conocida que ningún dato de
@@ -315,8 +384,15 @@ def teams_for_player(
     player: str,
     w_estilo: float = 0.5,
     axis_weights: dict[str, float] | None = None,
+    team_strength: pd.Series | None = None,
 ) -> pd.DataFrame:
-    """Ranking de equipos de la competición para un jugador, con desglose."""
+    """Ranking de equipos de la competición para un jugador, con desglose.
+
+    `team_strength` (ver `teams.team_strength`): fuerza real de cada equipo
+    por puntos por partido, para avisar en Realismo cuando el club de origen
+    del jugador es mucho más fuerte que el destino — aparte de mejora_puesto,
+    que solo mira rendimiento sobre el campo. Opcional: sin ella, Realismo
+    se basa solo en mejora_puesto, como antes."""
     style = team_style(events)
     traits = player_traits(table)
     prow = table[table["player"] == player].iloc[0]
@@ -349,7 +425,10 @@ def teams_for_player(
     out = pd.DataFrame(rows)
     out["encaje"] = _combine(out["estilo"], out["mejora_puesto"], w_estilo)
     out["realismo"] = [
-        _con_restriccion(etiqueta_realismo(m), t) for m, t in zip(out["mejora_puesto"], out["team"])
+        _con_restriccion(
+            etiqueta_realismo(m, _fuerza_gap(team_strength, key_prefix, prow["team"], key_prefix, t)), t
+        )
+        for m, t in zip(out["mejora_puesto"], out["team"])
     ]
     return out.sort_values("encaje", ascending=False).reset_index(drop=True)
 
@@ -362,6 +441,7 @@ def players_for_team(
     w_estilo: float = 0.5,
     axis_weights: dict[str, float] | None = None,
     adjust_level: bool = True,
+    team_strength: pd.Series | None = None,
 ) -> pd.DataFrame:
     """Ranking de fichajes para un equipo, con desglose. La tabla puede ser un
     pool multi-competición (columna ``competition``); el equipo destino debe
@@ -369,7 +449,14 @@ def players_for_team(
 
     Con `adjust_level`, los percentiles de las competiciones ajenas se corrigen
     con `competition_offsets` (jugadores puente) antes de calcular la mejora
-    del puesto; las columnas `offset` y `bridged` dejan ver el ajuste aplicado."""
+    del puesto; las columnas `offset` y `bridged` dejan ver el ajuste aplicado.
+
+    `team_strength` (ver `teams.team_strength`), indexada igual que ``table``
+    (por equipo, o por (competición, equipo) si hay pool): avisa en Realismo
+    cuando el club de origen del jugador es mucho más fuerte que el destino,
+    con datos reales de resultados — el caso típico de un pool multi-
+    competición (p. ej. un centrocampista de un equipo top de otra liga con
+    mejora_puesto moderada, pero un salto de club evidente)."""
     style_row = team_style(events).loc[team]
     traits = player_traits(table)
     desglose = style_breakdown(traits, style_row, axis_weights)
@@ -412,5 +499,20 @@ def players_for_team(
         out = out[out["position_group"] == group]
     out = out.copy()
     out["encaje"] = _combine(out["estilo"], out["mejora_puesto"], w_estilo)
-    out["realismo"] = out["mejora_puesto"].map(etiqueta_realismo).map(lambda t: _con_restriccion(t, team))
+    out["realismo"] = [
+        _con_restriccion(
+            etiqueta_realismo(
+                row["mejora_puesto"],
+                _fuerza_gap(
+                    team_strength,
+                    (row["competition"],) if "competition" in out.columns else key_prefix,
+                    row["team"],
+                    key_prefix,
+                    team,
+                ),
+            ),
+            team,
+        )
+        for _, row in out.iterrows()
+    ]
     return out.sort_values("encaje", ascending=False).reset_index(drop=True)

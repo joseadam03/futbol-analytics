@@ -266,3 +266,31 @@ def team_style_percentiles(style: pd.DataFrame) -> pd.DataFrame:
         serie = -out[col] if col in STYLE_INVERTED else out[col]
         out[f"{col}_pct"] = serie.rank(pct=True) * 100
     return out
+
+
+def team_strength(matches: pd.DataFrame) -> pd.Series:
+    """Fuerza de cada equipo (percentil 0-100) según puntos por partido en los
+    resultados ya cargados — 3/1/0 como en cualquier liga real, sobre datos
+    reales de `matches()` (`home_score`/`away_score`), no un dato inventado.
+
+    Puntos por partido y no puntos totales: así no penaliza a un equipo solo
+    porque los open data traigan menos partidos suyos. Serie vacía si
+    `matches` no trae marcadores (calendario sin resultados, o proveedor sin
+    calendario) — quien la use debe tratar eso como "sin señal", igual que
+    `competition_offsets` cuando no hay jugadores puente suficientes.
+    """
+    vacio = pd.Series(dtype=float, index=pd.Index([], name="team"), name="fuerza")
+    if not {"home_team", "away_team", "home_score", "away_score"}.issubset(matches.columns):
+        return vacio
+    jugados = matches.dropna(subset=["home_score", "away_score"])
+    if jugados.empty:
+        return vacio
+
+    local = jugados[["home_team", "home_score", "away_score"]].set_axis(["team", "gf", "ga"], axis=1)
+    visita = jugados[["away_team", "away_score", "home_score"]].set_axis(["team", "gf", "ga"], axis=1)
+    largo = pd.concat([local, visita], ignore_index=True)
+    largo["puntos"] = np.select([largo["gf"] > largo["ga"], largo["gf"] == largo["ga"]], [3, 1], default=0)
+
+    resumen = largo.groupby("team").agg(partidos=("puntos", "size"), puntos=("puntos", "sum"))
+    puntos_por_partido = resumen["puntos"] / resumen["partidos"]
+    return (100 * puntos_por_partido.rank(pct=True)).round(0).rename("fuerza")

@@ -162,8 +162,27 @@ def test_etiqueta_realismo_umbrales():
     assert fit.etiqueta_realismo(25.0) == ""  # el umbral es estricto, no inclusive
     assert fit.etiqueta_realismo(25.1) == "Mejora clara"
     assert fit.etiqueta_realismo(40.0) == "Mejora clara"
-    assert fit.etiqueta_realismo(40.1) == "Sobrecualificado — fichaje improbable en la práctica"
+    assert (
+        fit.etiqueta_realismo(40.1) == "Fichaje improbable en la práctica (nivel muy por encima del puesto)"
+    )
     assert fit.etiqueta_realismo(-30.0) == ""  # un downgrade no es "sobrecualificado"
+    assert fit.es_improbable(fit.etiqueta_realismo(40.1))
+    assert not fit.es_improbable(fit.etiqueta_realismo(30.0))
+
+
+def test_etiqueta_realismo_por_fuerza_de_club_aunque_la_mejora_sea_baja():
+    # el caso Verratti/Fabián Ruiz: mejora_puesto moderada (no sobrecualificado
+    # por rendimiento), pero el club de origen es mucho más fuerte que el destino.
+    texto = fit.etiqueta_realismo(15.0, fuerza_gap=40.0)
+    assert texto == "Fichaje improbable en la práctica (club de origen mucho más fuerte)"
+    assert fit.es_improbable(texto)
+    assert fit.etiqueta_realismo(15.0, fuerza_gap=20.0) == ""  # gap por debajo del umbral: sin aviso
+    assert fit.etiqueta_realismo(15.0, fuerza_gap=0.0) == ""  # sin señal de fuerza (0.0): sin aviso
+
+    # si se cumplen las dos condiciones, se combinan en un solo aviso
+    ambos = fit.etiqueta_realismo(45.0, fuerza_gap=40.0)
+    assert "nivel muy por encima del puesto" in ambos
+    assert "club de origen mucho más fuerte" in ambos
 
 
 def test_realismo_aparece_en_destinos_y_fichajes():
@@ -173,7 +192,21 @@ def test_realismo_aparece_en_destinos_y_fichajes():
 
     fichajes = fit.players_for_team(tabla_fw(), eventos_dos_estilos(), "A", group="FW")
     assert "realismo" in fichajes.columns
-    assert fichajes["realismo"].map(lambda t: t == "" or "Mejora" in t or "Sobrecualificado" in t).all()
+    assert fichajes["realismo"].map(lambda t: t == "" or "Mejora" in t or fit.es_improbable(t)).all()
+
+
+def test_players_for_team_usa_team_strength_para_marcar_club_de_origen_fuerte():
+    # "A" (destino) y "B" (origen del jugador) reciben una fuerza muy dispar: el
+    # aviso debe salir aunque mejora_puesto sea 0 (percentiles iguales, ver arriba).
+    fuerza = pd.Series({"A": 10.0, "B": 90.0})
+    fichajes = fit.players_for_team(tabla_fw(), eventos_dos_estilos(), "A", group="FW", team_strength=fuerza)
+    de_b = fichajes[fichajes["team"] == "B"]
+    assert not de_b.empty
+    assert de_b["realismo"].map(fit.es_improbable).all()
+
+    # sin team_strength, esos mismos jugadores no llevan ese aviso (solo mejora_puesto, que es 0)
+    sin_fuerza = fit.players_for_team(tabla_fw(), eventos_dos_estilos(), "A", group="FW")
+    assert (sin_fuerza[sin_fuerza["team"] == "B"]["realismo"] == "").all()
 
 
 def test_restriccion_conocida_se_combina_con_el_aviso_de_realismo(monkeypatch):

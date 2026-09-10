@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 
 import app_common as ac
-from futbol_analytics import fit, narrative, viz
+from futbol_analytics import fit, narrative, teams, viz
 
 PPDA_DEF = (
     "pases que se permiten al rival en su construcción por cada acción defensiva "
@@ -16,7 +16,7 @@ def _con_icono_realismo(texto: str) -> str:
     """Solo para mostrar en pantalla — el CSV exporta el texto plano de `fit.py`."""
     if "Política del club" in texto:
         return f"🚫 {texto}"
-    if texto.startswith("Sobrecualificado"):
+    if fit.es_improbable(texto):
         return f"⚠️ {texto}"
     if texto:
         return f"🔼 {texto}"
@@ -86,11 +86,21 @@ tab_destinos, tab_fichajes = st.tabs(["Destinos para el jugador", "Fichajes para
 
 with tab_destinos:
     st.markdown(f"#### ¿A qué equipos les encaja **{ctx['display']}**?")
-    destinos = fit.teams_for_player(table, events, ctx["player"], w_estilo, axis_weights)
+    fuerza = teams.team_strength(
+        ac.load_matches(
+            ctx["provider_key"], int(ctx["comp"]["competition_id"]), int(ctx["comp"]["season_id"])
+        )
+    )
+    destinos = fit.teams_for_player(
+        table, events, ctx["player"], w_estilo, axis_weights, team_strength=fuerza
+    )
 
-    es_sobrecualificado = destinos["realismo"].str.startswith("Sobrecualificado") & ~destinos["propio"]
-    destinos_top = destinos[~es_sobrecualificado]
-    destinos_sobra = destinos[es_sobrecualificado]
+    # .str.startswith (vectorizado) y no .map(fit.es_improbable): sobre una
+    # Serie vacía, .map() no puede inferir dtype bool y da object — al usarlo
+    # como máscara, pandas devuelve un DataFrame sin columnas (comprobado).
+    es_improbable = destinos["realismo"].str.startswith(fit.REALISMO_PREFIJO_IMPROBABLE) & ~destinos["propio"]
+    destinos_top = destinos[~es_improbable]
+    destinos_sobra = destinos[es_improbable]
 
     view = destinos_top.copy()
     view["team"] = view["team"] + view["propio"].map({True: "  ← su equipo", False: ""})
@@ -152,8 +162,7 @@ with tab_destinos:
     if not destinos_sobra.empty:
         with st.expander(
             f"⚠️ Destinos de ensueño, fuera de la lista ({len(destinos_sobra)}) — "
-            f"{ctx['display']} está tan por encima de esas plantillas que, en la práctica, "
-            "sería un fichaje improbable"
+            f"fichar a {ctx['display']} sería improbable en la práctica (ver el motivo en Realismo)"
         ):
             st.caption(
                 "Salen de la lista principal para no tapar destinos con más opciones reales: "
@@ -273,6 +282,23 @@ with tab_fichajes:
                     "percentiles se comparan sin corregir: trátalos como orientativos."
                 )
 
+    fuerza_activa = teams.team_strength(
+        ac.load_matches(
+            ctx["provider_key"], int(ctx["comp"]["competition_id"]), int(ctx["comp"]["season_id"])
+        )
+    )
+    if pool_labels:
+        partes_fuerza = [fuerza_activa.reset_index().assign(competition=ctx["comp_label"])]
+        for label in pool_labels:
+            comp = extra[extra["label"] == label].iloc[0]
+            f = teams.team_strength(
+                ac.load_matches(ctx["provider_key"], int(comp["competition_id"]), int(comp["season_id"]))
+            )
+            partes_fuerza.append(f.reset_index().assign(competition=label))
+        fuerza = pd.concat(partes_fuerza, ignore_index=True).set_index(["competition", "team"])["fuerza"]
+    else:
+        fuerza = fuerza_activa
+
     fichajes = fit.players_for_team(
         pool,
         events,
@@ -281,6 +307,7 @@ with tab_fichajes:
         w_estilo,
         axis_weights,
         adjust_level=ajustar,
+        team_strength=fuerza,
     )
     if max_minutos > 0:
         fichajes = fichajes[fichajes["minutes"] <= max_minutos]
@@ -291,8 +318,8 @@ with tab_fichajes:
     else:
         fichajes["player"] = fichajes["player"].map(display_of).fillna(fichajes["player"])
 
-    es_sobrecualificado = fichajes["realismo"].str.startswith("Sobrecualificado")
-    fichajes_top, fichajes_sobra = fichajes[~es_sobrecualificado], fichajes[es_sobrecualificado]
+    es_improbable = fichajes["realismo"].str.startswith(fit.REALISMO_PREFIJO_IMPROBABLE)
+    fichajes_top, fichajes_sobra = fichajes[~es_improbable], fichajes[es_improbable]
 
     st.markdown(f"#### Mejores fichajes para **{equipo}** (top 15)")
     cols = ["player", "team"]
@@ -372,8 +399,8 @@ with tab_fichajes:
 
     if not fichajes_sobra.empty:
         with st.expander(
-            f"⚠️ Fichajes de ensueño, fuera del top 15 ({len(fichajes_sobra)}) — nivel "
-            "disparado sobre la plantilla actual, fichaje improbable en la práctica"
+            f"⚠️ Fichajes de ensueño, fuera del top 15 ({len(fichajes_sobra)}) — "
+            "fichaje improbable en la práctica (ver el motivo en Realismo)"
         ):
             st.caption(
                 "Salen del ranking principal para no tapar candidatos con más opciones "
@@ -427,20 +454,28 @@ with st.expander("Cómo se calcula el encaje (y qué no dice)"):
   del nivel de la plantilla sube el encaje sin límite — aunque en la práctica nadie
   ficha a alguien así de por medio sin que medien sueldo, ambición o nivel de
   competición (datos que no están aquí). Por encima de +25 puntos de percentil se
-  etiqueta "Mejora clara" y se queda en su sitio en el ranking; por encima de +40,
-  "Sobrecualificado — fichaje improbable en la práctica" y **sale del top 15/lista
-  principal** a una sección aparte ("fichajes/destinos de ensueño"), para que unas
-  pocas superestrellas de nivel mundial no tapen candidatos con más opciones reales
-  — sin coste real de por medio, es la mejor aproximación que dan estos datos.
-  Por el mismo motivo, un club con una política de fichajes pública y conocida
-  (p. ej. el Athletic Club solo ficha cantera vasca) también se avisa aquí — no
-  hay cantera ni nacionalidad en los datos para filtrarlo de verdad.
+  etiqueta "Mejora clara" y se queda en su sitio en el ranking. Dos motivos suben
+  el aviso a **"Fichaje improbable en la práctica"** y sacan la fila del top
+  15/lista principal a una sección aparte ("fichajes/destinos de ensueño"): mejora
+  del puesto por encima de +40, o que el club de origen del jugador sea mucho más
+  fuerte que el destino (+35 puntos de percentil de fuerza real — puntos por
+  partido en los resultados ya cargados, no un precio inventado). Este segundo
+  motivo atrapa lo que "mejora del puesto" por sí solo se salta: un jugador de
+  control de un club top (poco volumen ofensivo en sus métricas per-90) puede no
+  puntuar muy por encima del puesto y aun así ser, en la práctica, un fichaje que
+  ese club nunca dejaría salir. Por el mismo motivo, un club con una política de
+  fichajes pública y conocida (p. ej. el Athletic Club solo ficha cantera vasca)
+  también se avisa aquí — no hay cantera ni nacionalidad en los datos para
+  filtrarlo de verdad.
 - **Pool multi-competición**: los percentiles y z-scores viajan con la competición
-  de origen de cada jugador; el nivel entre competiciones no se corrige, así que
-  el número entre ligas dispares es orientativo.
-- **Lo que no dice**: nada de edad, precio, encaje táctico fino (perfil
-  zurdo/diestro, rol exacto en el sistema), química o contexto de club. En torneos
-  cortos, el estilo de una selección son 3-7 partidos. Es una lente para ordenar
-  candidatos, no un oráculo de fichajes.
+  de origen de cada jugador; el nivel entre competiciones no se corrige (salvo que
+  actives el ajuste por jugadores puente), así que el número entre ligas dispares
+  es orientativo. La fuerza de club si se sale de "Mejora del puesto" — se calcula
+  por separado, dentro de cada competición.
+- **Lo que no dice**: nada de edad, precio, sueldo, encaje táctico fino (perfil
+  zurdo/diestro, rol exacto en el sistema) o química de vestuario. La fuerza de
+  club es una aproximación real (resultados) a "de qué nivel de equipo viene", no
+  un valor de mercado. En torneos cortos, el estilo de una selección son 3-7
+  partidos. Es una lente para ordenar candidatos, no un oráculo de fichajes.
 """
     )
