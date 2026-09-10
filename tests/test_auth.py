@@ -1,8 +1,8 @@
 """Login siempre obligatorio: sin config.yaml solo existe la cuenta demo
 integrada; con él, sus usuarios se añaden a esa demo. En ambos casos hay
 que pasar por usuario/contraseña antes de ver cualquier página. También
-cubre los dos campos opcionales por usuario: proveedor forzado a demo y
-claves de Wyscout propias (que no deben filtrarse a otras sesiones)."""
+cubre los campos opcionales por usuario: proveedor forzado a demo y claves
+propias de Wyscout/StatsBomb (que no deben filtrarse a otras sesiones)."""
 
 from pathlib import Path
 
@@ -279,7 +279,66 @@ def test_pagina_admin_crea_usuario_y_persiste(monkeypatch, tmp_path):
     assert "nueva_persona" in guardado["credentials"]["usernames"]
 
 
-def test_usuario_con_claves_wyscout_propias_se_inyectan_en_su_sesion(monkeypatch, tmp_path):
+def test_pagina_admin_guarda_claves_de_api_opcionales(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    monkeypatch.setattr(
+        auth, "CONFIG_PATH", _config_con_usuario_admin(tmp_path, "otra-clave", path=config_path)
+    )
+    at = _app()
+    at.run()
+    _login(at, auth.ADMIN_USER, "otra-clave")
+    assert not at.exception, [str(e.value) for e in at.exception]
+
+    at.switch_page("app_pages/admin.py")
+    at.run()
+    assert not at.exception, [str(e.value) for e in at.exception]
+
+    _campo(at, "Nombre a mostrar").set_value("Con Claves")
+    _campo(at, "Email").set_value("conclaves@example.com")
+    _campo(at, "Usuario (sin espacios)").set_value("con_claves")
+    _campo(at, "Contraseña").set_value("clave-nueva-1234")
+    _campo(at, "Repite la contraseña").set_value("clave-nueva-1234")
+    _campo(at, "Wyscout — Client ID").set_value("id-club")
+    _campo(at, "Wyscout — Client Secret").set_value("secreto-club")
+    _campo(at, "StatsBomb — usuario").set_value("usuario-club")
+    _campo(at, "StatsBomb — contraseña").set_value("clave-club")
+    _boton(at, "Crear usuario").click().run()
+    assert not at.exception, [str(e.value) for e in at.exception]
+
+    datos = yaml.safe_load(config_path.read_text())["credentials"]["usernames"]["con_claves"]
+    assert datos["wyscout_client_id"] == "id-club"
+    assert datos["wyscout_client_secret"] == "secreto-club"
+    assert datos["statsbomb_user"] == "usuario-club"
+    assert datos["statsbomb_password"] == "clave-club"
+
+
+def test_pagina_admin_sin_claves_de_api_no_las_guarda(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    monkeypatch.setattr(
+        auth, "CONFIG_PATH", _config_con_usuario_admin(tmp_path, "otra-clave", path=config_path)
+    )
+    at = _app()
+    at.run()
+    _login(at, auth.ADMIN_USER, "otra-clave")
+    assert not at.exception, [str(e.value) for e in at.exception]
+
+    at.switch_page("app_pages/admin.py")
+    at.run()
+
+    _campo(at, "Nombre a mostrar").set_value("Sin Claves")
+    _campo(at, "Email").set_value("sinclaves@example.com")
+    _campo(at, "Usuario (sin espacios)").set_value("sin_claves")
+    _campo(at, "Contraseña").set_value("clave-nueva-1234")
+    _campo(at, "Repite la contraseña").set_value("clave-nueva-1234")
+    _boton(at, "Crear usuario").click().run()
+    assert not at.exception, [str(e.value) for e in at.exception]
+
+    datos = yaml.safe_load(config_path.read_text())["credentials"]["usernames"]["sin_claves"]
+    assert "wyscout_client_id" not in datos
+    assert "statsbomb_user" not in datos
+
+
+def test_usuario_con_claves_propias_se_inyectan_en_su_sesion(monkeypatch, tmp_path):
     config = {
         "credentials": {
             "usernames": {
@@ -289,6 +348,8 @@ def test_usuario_con_claves_wyscout_propias_se_inyectan_en_su_sesion(monkeypatch
                     "password": stauth.Hasher.hash("clave123"),
                     "wyscout_client_id": "id-de-jose",
                     "wyscout_client_secret": "secreto-de-jose",
+                    "statsbomb_user": "usuario-sb-de-jose",
+                    "statsbomb_password": "clave-sb-de-jose",
                 }
             }
         },
@@ -299,14 +360,17 @@ def test_usuario_con_claves_wyscout_propias_se_inyectan_en_su_sesion(monkeypatch
     monkeypatch.setattr(auth, "CONFIG_PATH", config_path)
 
     # App mínima: no pasa por sidebar_context (evita que la app real intente
-    # golpear la API real de Wyscout al elegir ese proveedor).
+    # golpear las APIs reales de Wyscout/StatsBomb al elegir ese proveedor).
     app_path = tmp_path / "mini_app.py"
     app_path.write_text(
         "import streamlit as st\n"
         "from futbol_analytics import auth\n"
         "from futbol_analytics.providers.wyscout import WyscoutProvider\n"
+        "from futbol_analytics.providers.statsbomb import StatsBombProvider\n"
         "if auth.requiere_login():\n"
-        '    st.write(f"CREDS:{WyscoutProvider()._auth[0]}:{WyscoutProvider()._auth[1]}")\n'
+        "    wy = WyscoutProvider()._auth\n"
+        "    sb = StatsBombProvider()._creds\n"
+        "    st.write(f\"CREDS:{wy[0]}:{wy[1]}:{sb['user']}:{sb['passwd']}\")\n"
     )
 
     at = AppTest.from_file(str(app_path), default_timeout=60)
@@ -315,4 +379,4 @@ def test_usuario_con_claves_wyscout_propias_se_inyectan_en_su_sesion(monkeypatch
     at.text_input[1].set_value("clave123")
     at.button[0].click().run()
     assert not at.exception, [str(e.value) for e in at.exception]
-    assert at.markdown[-1].value == "CREDS:id-de-jose:secreto-de-jose"
+    assert at.markdown[-1].value == "CREDS:id-de-jose:secreto-de-jose:usuario-sb-de-jose:clave-sb-de-jose"

@@ -1,9 +1,12 @@
-"""Proveedor StatsBomb open data, con caché local en data/cache/."""
+"""Proveedor StatsBomb: open data por defecto, o la API privada si el usuario
+logueado tiene credenciales propias (ver auth.py)."""
 
 from __future__ import annotations
 
 import logging
+import os
 import warnings
+from contextvars import ContextVar
 
 import pandas as pd
 import requests
@@ -17,6 +20,17 @@ warnings.filterwarnings("ignore", module="statsbombpy")
 
 log = logging.getLogger(__name__)
 
+# Credenciales del usuario logueado para esta sesión (ver auth.py). Un
+# ContextVar y no os.environ: streamlit sirve varias sesiones concurrentes en
+# el mismo proceso, y escribir en el entorno filtraría la clave de un usuario
+# a las peticiones de otro. Sin credenciales (el caso normal), statsbombpy
+# cae solo a los open data públicos — ver has_auth() en statsbombpy.
+_CREDENTIALS: ContextVar[tuple[str, str] | None] = ContextVar("statsbomb_credentials", default=None)
+
+
+def set_session_credentials(user: str, password: str) -> None:
+    _CREDENTIALS.set((user, password))
+
 
 def _clock_to_min(clock: str) -> float:
     mm, ss = clock.split(":")
@@ -26,14 +40,21 @@ def _clock_to_min(clock: str) -> float:
 class StatsBombProvider(Provider):
     name = "StatsBomb (open data)"
 
+    def __init__(self) -> None:
+        user, password = _CREDENTIALS.get() or (
+            os.environ.get("SB_USERNAME", ""),
+            os.environ.get("SB_PASSWORD", ""),
+        )
+        self._creds = {"user": user, "passwd": password}
+
     def competitions(self) -> pd.DataFrame:
-        return sb.competitions()
+        return sb.competitions(creds=self._creds)
 
     def has_cached(self, competition_id: int, season_id: int) -> bool:
         return (CACHE_DIR / f"events_{competition_id}_{season_id}.pkl").exists()
 
     def matches(self, competition_id: int, season_id: int) -> pd.DataFrame:
-        return sb.matches(competition_id=competition_id, season_id=season_id)
+        return sb.matches(competition_id=competition_id, season_id=season_id, creds=self._creds)
 
     def events(self, competition_id: int, season_id: int, refresh: bool = False) -> pd.DataFrame:
         cache = CACHE_DIR / f"events_{competition_id}_{season_id}.pkl"
@@ -44,7 +65,7 @@ class StatsBombProvider(Provider):
         frames = []
         for i, match_id in enumerate(match_ids, 1):
             try:
-                df = sb.events(match_id=match_id)
+                df = sb.events(match_id=match_id, creds=self._creds)
             except requests.exceptions.HTTPError as exc:
                 # hueco puntual en los open data (fichero ausente/corrupto para
                 # este partido): mejor perder un partido que tumbar la competición entera.
@@ -80,7 +101,7 @@ class StatsBombProvider(Provider):
         rows = []
         for i, match_id in enumerate(match_ids, 1):
             try:
-                lineups = sb.lineups(match_id=match_id)
+                lineups = sb.lineups(match_id=match_id, creds=self._creds)
             except requests.exceptions.HTTPError as exc:
                 # mismo hueco puntual que en events(): un partido sin alineación
                 # publicada no debe tumbar los minutos de toda la competición.

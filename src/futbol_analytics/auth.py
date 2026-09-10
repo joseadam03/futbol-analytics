@@ -15,11 +15,16 @@ gate. Sin `config.yaml` hay dos cuentas embebidas en este fichero:
   `scripts/crear_usuario.py` sigue siendo la vía rápida desde la terminal
   para quien la prefiera; ambas caen en el mismo `config.yaml`.
 
-Cada usuario puede llevar, además de sus credenciales de login, dos campos
-opcionales (ver `config.example.yaml`):
+Cada usuario puede llevar, además de sus credenciales de login, varios campos
+opcionales (ver `config.example.yaml`) — todos se pueden rellenar también
+desde la página **Admin** al crear el usuario, sin tocar el YAML:
 - `wyscout_client_id` / `wyscout_client_secret`: sus propias claves de la API
   de Wyscout, que se usan solo en su sesión — no se comparten con el resto
   de cuentas ni hace falta ponerlas en `.env` para todo el despliegue.
+- `statsbomb_user` / `statsbomb_password`: igual, pero para la API privada de
+  StatsBomb (`SB_USERNAME`/`SB_PASSWORD` en la librería `statsbombpy`) — sin
+  ellas, `StatsBombProvider` sigue funcionando con los open data públicos,
+  que no requieren credenciales.
 - `provider: fake`: le fuerza por defecto la liga sintética de demo, para dar
   acceso a alguien (un recruiter, por ejemplo) sin exponerle datos reales.
 """
@@ -38,7 +43,8 @@ import streamlit_authenticator as stauth
 import yaml
 from streamlit_authenticator.utilities import LoginError
 
-from .providers.wyscout import set_session_credentials
+from .providers.statsbomb import set_session_credentials as set_statsbomb_credentials
+from .providers.wyscout import set_session_credentials as set_wyscout_credentials
 
 CONFIG_PATH = Path(os.environ.get("FUTBOL_ANALYTICS_AUTH_CONFIG", "config.yaml"))
 
@@ -187,7 +193,9 @@ def requiere_login() -> bool:
 
     _USUARIO_ACTUAL.set(datos)
     if datos.get("wyscout_client_id") and datos.get("wyscout_client_secret"):
-        set_session_credentials(datos["wyscout_client_id"], datos["wyscout_client_secret"])
+        set_wyscout_credentials(datos["wyscout_client_id"], datos["wyscout_client_secret"])
+    if datos.get("statsbomb_user") and datos.get("statsbomb_password"):
+        set_statsbomb_credentials(datos["statsbomb_user"], datos["statsbomb_password"])
 
     with st.sidebar:
         st.caption(f"Sesión: {st.session_state.get('name')}")

@@ -20,11 +20,34 @@ def _http_error(code: int = 400) -> requests.exceptions.HTTPError:
     return requests.exceptions.HTTPError(response=resp)
 
 
+def test_sin_credenciales_usa_creds_vacias(monkeypatch):
+    monkeypatch.delenv("SB_USERNAME", raising=False)
+    monkeypatch.delenv("SB_PASSWORD", raising=False)
+    provider = sbp.StatsBombProvider()
+    assert provider._creds == {"user": "", "passwd": ""}
+
+
+def test_credenciales_de_sesion_se_usan_en_las_llamadas(monkeypatch):
+    # ContextVar directo, no la fixture de sesión: hay que restaurarlo a mano
+    # para no filtrar estas credenciales a los demás tests del proceso.
+    sbp.set_session_credentials("usuario-club", "clave-club")
+    try:
+        provider = sbp.StatsBombProvider()
+        assert provider._creds == {"user": "usuario-club", "passwd": "clave-club"}
+
+        vistos = []
+        monkeypatch.setattr(sbp.sb, "competitions", lambda creds: vistos.append(creds))
+        provider.competitions()
+        assert vistos == [{"user": "usuario-club", "passwd": "clave-club"}]
+    finally:
+        sbp._CREDENTIALS.set(None)
+
+
 def test_events_salta_un_partido_sin_datos_y_sigue(monkeypatch):
     provider = sbp.StatsBombProvider()
     monkeypatch.setattr(provider, "matches", lambda comp, season: pd.DataFrame({"match_id": [1, 2, 3]}))
 
-    def fake_events(match_id):
+    def fake_events(match_id, creds=None):
         if match_id == 2:
             raise _http_error()
         return pd.DataFrame({"minute": [1], "period": [1]})
@@ -38,7 +61,7 @@ def test_events_lanza_error_claro_si_todos_los_partidos_fallan(monkeypatch):
     provider = sbp.StatsBombProvider()
     monkeypatch.setattr(provider, "matches", lambda comp, season: pd.DataFrame({"match_id": [1]}))
 
-    def fake_events(match_id):
+    def fake_events(match_id, creds=None):
         raise _http_error()
 
     monkeypatch.setattr(sbp.sb, "events", fake_events)
@@ -59,7 +82,7 @@ def test_minutes_played_salta_una_alineacion_sin_datos_y_sigue(monkeypatch):
         ]
     )
 
-    def fake_lineups(match_id):
+    def fake_lineups(match_id, creds=None):
         if match_id == 2:
             raise _http_error()
         return {"Equipo A": lineup_ok}
@@ -74,7 +97,7 @@ def test_minutes_played_lanza_error_claro_si_todas_las_alineaciones_fallan(monke
     provider = sbp.StatsBombProvider()
     events_df = pd.DataFrame({"match_id": [1], "period": [1], "minute": [10]})
 
-    def fake_lineups(match_id):
+    def fake_lineups(match_id, creds=None):
         raise _http_error()
 
     monkeypatch.setattr(sbp.sb, "lineups", fake_lineups)

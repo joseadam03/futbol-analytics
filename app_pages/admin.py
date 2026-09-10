@@ -41,6 +41,15 @@ with st.form("crear_usuario", clear_on_submit=True):
     usuario = st.text_input("Usuario (sin espacios)")
     password = st.text_input("Contraseña", type="password")
     password_repetida = st.text_input("Repite la contraseña", type="password")
+    with st.expander("Claves de API (opcional)"):
+        st.caption(
+            "Solo para esta cuenta — no se comparten con el resto de usuarios "
+            "ni hace falta ponerlas en el .env de todo el despliegue."
+        )
+        wyscout_id = st.text_input("Wyscout — Client ID")
+        wyscout_secret = st.text_input("Wyscout — Client Secret", type="password")
+        sb_user = st.text_input("StatsBomb — usuario")
+        sb_password = st.text_input("StatsBomb — contraseña", type="password")
     enviado = st.form_submit_button("Crear usuario")
 
 if enviado:
@@ -54,11 +63,18 @@ if enviado:
     elif password != password_repetida:
         st.error("Las dos contraseñas no coinciden.")
     else:
-        config["credentials"]["usernames"][usuario] = {
+        datos_usuario = {
             "email": email,
             "name": nombre or usuario,
             "password": stauth.Hasher.hash(password),
         }
+        if wyscout_id and wyscout_secret:
+            datos_usuario["wyscout_client_id"] = wyscout_id
+            datos_usuario["wyscout_client_secret"] = wyscout_secret
+        if sb_user and sb_password:
+            datos_usuario["statsbomb_user"] = sb_user
+            datos_usuario["statsbomb_password"] = sb_password
+        config["credentials"]["usernames"][usuario] = datos_usuario
         auth.guardar_config(config)
         st.success(f"Usuario «{usuario}» creado — ya puede entrar con su contraseña.")
         st.rerun()
