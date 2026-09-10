@@ -207,7 +207,7 @@ cálculos, y los penaltis dentro del juego de las métricas de tiro.
   recepción) dentro del área rival.
 - **Percentiles** — rango percentil dentro del grupo posicional (GK/DF/MF/FW) o
   del **rol fino** (portero, central, lateral, pivote, interior, mediapunta,
-  extremo, delantero), a elegir en la barra lateral. El rol compara peras con
+  extremo, delantero), a elegir en la barra de filtros de arriba. El rol compara peras con
   peras, pero adelgaza la muestra: los roles con menos de 8 jugadores caen
   automáticamente a su grupo posicional, y la app dice cuál se usó.
 - **Estilo de equipo** — ritmo (longitud de pase, % de pases largos, pases por
@@ -255,7 +255,7 @@ cálculos, y los penaltis dentro del juego de las métricas de tiro.
 
 ```
 streamlit_app.py      # entrada de la app (navegación multipágina)
-app_common.py         # estado compartido: carga de datos, sidebar, descargas
+app_common.py         # estado compartido: carga de datos, barra de filtros, descargas
 app_pages/            # Inicio · Buscador · Filtro avanzado · Jugador · Comparar · Encaje · Equipos · Informe de equipo
                       # Partido · Competición · Secuencias · Evolución · Modelo xG · Metodología
 src/futbol_analytics/

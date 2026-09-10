@@ -30,7 +30,7 @@ def get_provider(key: str) -> Provider:
 
 
 def list_providers(*, include_fake: bool | None = None) -> dict[str, Provider]:
-    """Proveedores que se ofrecen en el desplegable de la barra lateral.
+    """Proveedores que se ofrecen en el desplegable de la barra de filtros.
 
     `include_fake=None` (por defecto) sigue la variable de entorno
     FUTBOL_ANALYTICS_FAKE (modo demo global, para tests y `make demo`);

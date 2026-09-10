@@ -9,7 +9,7 @@ events = ctx["events"]
 st.title("⚽ Fútbol Analytics")
 st.caption(
     "Análisis de rendimiento de jugadores y equipos sobre datos de eventos. "
-    "Elige competición y jugador en la barra lateral; cada página cuenta una parte de la historia."
+    "Elige competición y jugador en la barra de arriba; cada página cuenta una parte de la historia."
 )
 
 c1, c2, c3, c4 = st.columns(4)

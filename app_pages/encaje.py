@@ -222,7 +222,7 @@ with tab_fichajes:
         key="fit_max_min",
         help=(
             "0 = sin límite. Útil para buscar suplentes o jugadores emergentes en vez de "
-            "titulares consolidados — el mínimo ya lo fija el filtro de minutos de la barra lateral."
+            "titulares consolidados — el mínimo ya lo fija el filtro de minutos de arriba."
         ),
     )
 

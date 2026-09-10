@@ -61,8 +61,8 @@ if not hits.empty:
             st.switch_page("app_pages/jugador.py")
 else:
     st.warning(
-        f"**«{q}» no está en {ctx['comp_label']}** (o no llega al umbral de minutos de la "
-        "barra lateral). Buscamos su ficha fuera de los datos de eventos:"
+        f"**«{q}» no está en {ctx['comp_label']}** (o no llega al umbral de minutos de "
+        "arriba). Buscamos su ficha fuera de los datos de eventos:"
     )
     with st.spinner("Consultando TheSportsDB..."):
         try:

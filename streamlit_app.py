@@ -28,7 +28,7 @@ if not auth.requiere_login():
     st.stop()
 
 st.sidebar.title("⚽ Fútbol Analytics")
-st.session_state["ctx"] = ac.sidebar_context()
+st.session_state["ctx"] = ac.filter_bar_context()
 
 ayuda_pages = [st.Page("app_pages/metodologia.py", title="Metodología", icon="📖")]
 if st.session_state.get("username") == auth.ADMIN_USER:

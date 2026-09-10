@@ -19,7 +19,7 @@ st.caption(
     "Criba la competición cargada por posición y percentiles de rendimiento — "
     "los mismos percentiles que ves en la ficha de cada jugador, aquí aplicados "
     "de golpe a toda la competición. Respeta los minutos mínimos y el grupo/rol "
-    "de comparación que hayas puesto en la barra lateral."
+    "de comparación que hayas puesto arriba."
 )
 
 c_grupo, c_equipo = st.columns([1, 2])
@@ -110,7 +110,7 @@ with st.expander("Cómo funciona el filtro"):
     st.markdown(
         """
 Cada percentil compara al jugador contra su grupo posicional (o su rol fino, si
-lo has elegido en la barra lateral) dentro de la competición cargada — el mismo
+lo has elegido arriba) dentro de la competición cargada — el mismo
 cálculo que alimenta el radar de cada ficha, aquí aplicado como corte en vez de
 como gráfico. Con varias métricas a la vez, un jugador solo aparece si supera
 **todos** los umbrales, y la tabla se ordena por la media de sus percentiles

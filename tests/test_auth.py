@@ -411,7 +411,7 @@ def test_usuario_con_claves_propias_se_inyectan_en_su_sesion(monkeypatch, tmp_pa
     config_path.write_text(yaml.safe_dump(config))
     monkeypatch.setattr(auth, "CONFIG_PATH", config_path)
 
-    # App mínima: no pasa por sidebar_context (evita que la app real intente
+    # App mínima: no pasa por filter_bar_context (evita que la app real intente
     # golpear las APIs reales de Wyscout/StatsBomb al elegir ese proveedor).
     app_path = tmp_path / "mini_app.py"
     app_path.write_text(

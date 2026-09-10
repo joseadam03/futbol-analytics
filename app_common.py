@@ -251,23 +251,33 @@ def _stop_with_data_error(exc: Exception) -> None:
     st.stop()
 
 
-def sidebar_context() -> dict:
-    """Dibuja la barra lateral global y devuelve la selección actual."""
+def filter_bar_context() -> dict:
+    """Dibuja la barra de filtros global (fila horizontal arriba) y devuelve la selección actual.
+
+    En una fila para que se vea entera de un vistazo, en vez de tener que abrir la
+    barra lateral: Jugador depende de la tabla ya cargada (provider_key + competición
+    + minutos + comparar contra), así que su columna se rellena más abajo en el código
+    — Streamlit no exige rellenar las columnas de una fila en orden, solo que estén
+    todas dentro de la misma llamada a `st.columns` (comprobado con un test real).
+    """
     viz.use_theme(theme())
+
+    c_prov, c_comp, c_min, c_basis, c_player = st.columns([1.6, 1.8, 1.4, 1.6, 1.8])
 
     usuario = auth.usuario_actual()
     forzado = usuario.get("provider") if usuario else None
     providers = list_providers(include_fake=True if forzado == "fake" else None)
     keys = list(providers)
-    provider_key = st.sidebar.selectbox(
-        "Proveedor de datos",
-        options=keys,
-        index=keys.index(forzado) if forzado in keys else 0,
-        format_func=lambda k: providers[k].name,
-        key="provider_sel",
-    )
+    with c_prov:
+        provider_key = st.selectbox(
+            "Proveedor de datos",
+            options=keys,
+            index=keys.index(forzado) if forzado in keys else 0,
+            format_func=lambda k: providers[k].name,
+            key="provider_sel",
+        )
     if not providers[provider_key].available():
-        st.sidebar.warning("Este proveedor aún no está disponible.")
+        st.warning("Este proveedor aún no está disponible.")
         st.info(
             "**Wyscout está implementado pero pendiente de credenciales.** El mapeo de "
             "eventos, los minutos y el calendario están escritos y cubiertos por tests; "
@@ -282,20 +292,23 @@ def sidebar_context() -> dict:
         _stop_with_data_error(exc)
     labels = comps["label"].tolist()
     default_ix = labels.index("FIFA World Cup · 2022") if "FIFA World Cup · 2022" in labels else 0
-    comp_label = st.sidebar.selectbox("Competición", labels, index=default_ix, key="comp_sel")
+    with c_comp:
+        comp_label = st.selectbox("Competición", labels, index=default_ix, key="comp_sel")
     comp = comps[comps["label"] == comp_label].iloc[0]
 
-    min_minutes = st.sidebar.slider("Minutos mínimos (percentiles)", 0, 900, 180, 30, key="min_sel")
-    basis = st.sidebar.radio(
-        "Comparar contra",
-        ["position_group", "role"],
-        format_func=lambda b: "Grupo posicional" if b == "position_group" else "Rol (lateral ≠ central)",
-        key="basis_sel",
-        help=(
-            "El rol fino compara peras con peras, pero adelgaza la muestra: los roles con "
-            f"menos de {metrics.MIN_ROLE_SIZE} jugadores caen automáticamente a su grupo posicional."
-        ),
-    )
+    with c_min:
+        min_minutes = st.slider("Minutos mínimos (percentiles)", 0, 900, 180, 30, key="min_sel")
+    with c_basis:
+        basis = st.radio(
+            "Comparar contra",
+            ["position_group", "role"],
+            format_func=lambda b: "Grupo posicional" if b == "position_group" else "Rol (lateral ≠ central)",
+            key="basis_sel",
+            help=(
+                "El rol fino compara peras con peras, pero adelgaza la muestra: los roles con "
+                f"menos de {metrics.MIN_ROLE_SIZE} jugadores caen automáticamente a su grupo posicional."
+            ),
+        )
 
     with st.spinner("Cargando datos... (la primera descarga de una competición tarda varios minutos)"):
         try:
@@ -309,7 +322,7 @@ def sidebar_context() -> dict:
     if table.empty:
         st.warning(
             f"Ningún jugador alcanza {min_minutes:.0f} minutos en esta competición. "
-            "Baja el umbral de minutos en la barra lateral."
+            "Baja el umbral de minutos en la barra de filtros."
         )
         st.stop()
 
@@ -323,13 +336,14 @@ def sidebar_context() -> dict:
     if jump is not None and jump in set(table["player"]):
         st.session_state["player_sel"] = jump
 
-    player = st.sidebar.selectbox(
-        "Jugador",
-        sorted(table["player"], key=lambda p: display_of[p]),
-        format_func=lambda p: display_of.get(p, p),
-        key="player_sel",
-    )
-    st.sidebar.caption(
+    with c_player:
+        player = st.selectbox(
+            "Jugador",
+            sorted(table["player"], key=lambda p: display_of[p]),
+            format_func=lambda p: display_of.get(p, p),
+            key="player_sel",
+        )
+    st.caption(
         f"{len(table)} jugadores con ≥{min_minutes:.0f} min · Datos: StatsBomb open data (uso no comercial)"
     )
 

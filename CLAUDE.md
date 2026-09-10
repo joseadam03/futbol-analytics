@@ -68,9 +68,13 @@ página o gráfico nuevo:
   propias — la foto/escudo (`photos.py`/`crests.py`, ambos con caché en
   disco y tolerantes a fallos) los resuelve quien llama (`app_common.py` o
   los scripts de `scripts/`), nunca `report.py` en sí.
-- **App Streamlit**: `streamlit_app.py` (sidebar + navegación) +
-  `app_common.py` (estado compartido, todo cacheado con `st.cache_data`) +
-  `app_pages/*.py`. Páginas actuales: Inicio, Buscador, **Filtro avanzado**
+- **App Streamlit**: `streamlit_app.py` (login, navegación por secciones en la
+  barra lateral) + `app_common.py` (estado compartido, todo cacheado con
+  `st.cache_data`; `filter_bar_context()` dibuja la barra de filtros —
+  proveedor/competición/minutos/comparar contra/jugador — en una fila
+  horizontal arriba de cada página, no en la barra lateral: así se ve entera
+  sin tener que abrirla) + `app_pages/*.py`. Páginas actuales: Inicio,
+  Buscador, **Filtro avanzado**
   (cribado por posición + percentiles mínimos, tipo Wyscout/Driblab pero sobre
   los mismos percentiles que ya calcula el resto de la app), Jugador, Comparar,
   Encaje (fit + centro de fichajes), Equipos, Informe de equipo, Partido

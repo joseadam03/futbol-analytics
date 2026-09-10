@@ -14,7 +14,7 @@ Para activarlo:
    o dárselas solo a un usuario del login opcional (`wyscout_client_id` /
    `wyscout_client_secret` en su entrada de `config.yaml`; ver auth.py) para
    no compartirlas con el resto de cuentas.
-2. Seleccionar el proveedor "Wyscout" en la barra lateral de la app.
+2. Seleccionar el proveedor "Wyscout" en la barra de filtros de la app.
 
 Decisiones del mapeo, para que se puedan discutir:
 - Las coordenadas de Wyscout van en porcentaje (0-100) del campo; se llevan a

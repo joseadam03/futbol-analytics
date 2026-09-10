@@ -1,8 +1,8 @@
 """Tests de interfaz: la app completa renderiza sobre la liga sintética, sin red.
 
 Con FUTBOL_ANALYTICS_FAKE=1 el proveedor demo es el primero del registro y
-la barra lateral lo selecciona por defecto, así que AppTest ejecuta el
-mismo código que ve un usuario — carga de datos, sidebar y cada página —
+la barra de filtros lo selecciona por defecto, así que AppTest ejecuta el
+mismo código que ve un usuario — carga de datos, filtros y cada página —
 en segundos y de forma determinista. El login es obligatorio (ver
 `auth.py`), así que `_app()` entra con la cuenta demo integrada antes de
 devolver el AppTest; la sesión sigue autenticada en las llamadas a `.run()`
