@@ -34,6 +34,22 @@ st.table(
     ]
 )
 
+st.subheader("Eliminar usuario")
+borrables = sorted(
+    u for u in config["credentials"]["usernames"] if u not in (auth.DEMO_USER, auth.ADMIN_USER)
+)
+if not borrables:
+    st.caption(
+        "No hay ninguna cuenta creada desde aquí para eliminar — demo y admin vienen integradas en el código."
+    )
+else:
+    a_borrar = st.selectbox("Usuario a eliminar", borrables)
+    if st.button(f"Eliminar «{a_borrar}»"):
+        del config["credentials"]["usernames"][a_borrar]
+        auth.guardar_config(config)
+        st.success(f"Usuario «{a_borrar}» eliminado.")
+        st.rerun()
+
 st.subheader("Crear usuario")
 with st.form("crear_usuario", clear_on_submit=True):
     nombre = st.text_input("Nombre a mostrar")

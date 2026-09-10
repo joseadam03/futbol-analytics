@@ -279,6 +279,58 @@ def test_pagina_admin_crea_usuario_y_persiste(monkeypatch, tmp_path):
     assert "nueva_persona" in guardado["credentials"]["usernames"]
 
 
+def test_pagina_admin_elimina_usuario(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config = {
+        "credentials": {
+            "usernames": {
+                auth.ADMIN_USER: {
+                    "email": "admin@example.com",
+                    "name": "Admin",
+                    "password": stauth.Hasher.hash("otra-clave"),
+                },
+                "borrame": {
+                    "email": "borrame@example.com",
+                    "name": "Borrame",
+                    "password": stauth.Hasher.hash("clave123"),
+                },
+            }
+        },
+        "cookie": {"name": "test_auth", "key": "clave-de-test", "expiry_days": 1},
+    }
+    config_path.write_text(yaml.safe_dump(config))
+    monkeypatch.setattr(auth, "CONFIG_PATH", config_path)
+
+    at = _app()
+    at.run()
+    _login(at, auth.ADMIN_USER, "otra-clave")
+    assert not at.exception, [str(e.value) for e in at.exception]
+
+    at.switch_page("app_pages/admin.py")
+    at.run()
+    assert not at.exception, [str(e.value) for e in at.exception]
+
+    _boton(at, "Eliminar «borrame»").click().run()
+    assert not at.exception, [str(e.value) for e in at.exception]
+
+    guardado = yaml.safe_load(config_path.read_text())
+    assert "borrame" not in guardado["credentials"]["usernames"]
+
+
+def test_pagina_admin_no_puede_eliminar_demo_ni_admin(monkeypatch, tmp_path):
+    monkeypatch.setattr(auth, "CONFIG_PATH", _config_con_usuario_admin(tmp_path, "otra-clave"))
+    at = _app()
+    at.run()
+    _login(at, auth.ADMIN_USER, "otra-clave")
+    assert not at.exception, [str(e.value) for e in at.exception]
+
+    at.switch_page("app_pages/admin.py")
+    at.run()
+    assert not at.exception, [str(e.value) for e in at.exception]
+    # Sin más cuentas creadas desde el panel: solo queda el aviso, no el desplegable de borrado.
+    assert any("vienen integradas en el código" in c.value for c in at.caption)
+
+
 def test_pagina_admin_guarda_claves_de_api_opcionales(monkeypatch, tmp_path):
     config_path = tmp_path / "config.yaml"
     monkeypatch.setattr(
