@@ -184,7 +184,7 @@ pillow==12.3.0
     #   matplotlib
     #   mplsoccer
     #   streamlit
-platformdirs==4.11.5
+platformdirs==4.11.8
     # via
     #   requests-cache
     #   virtualenv
