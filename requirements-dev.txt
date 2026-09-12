@@ -82,7 +82,7 @@ jinja2==3.1.6
     # via
     #   altair
     #   pydeck
-joblib==1.5.3
+joblib==1.6.0
     # via
     #   scikit-learn
     #   statsbombpy
