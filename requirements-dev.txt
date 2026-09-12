@@ -20,7 +20,7 @@ bcrypt==5.0.0
     # via streamlit-authenticator
 captcha==0.7.1
     # via streamlit-authenticator
-cattrs==26.1.0
+cattrs==26.2.0
     # via requests-cache
 certifi==2026.7.22
     # via requests
