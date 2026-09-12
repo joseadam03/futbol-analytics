@@ -251,7 +251,7 @@ rpds-py==2026.6.3 ; python_full_version >= '3.11'
     # via
     #   jsonschema
     #   referencing
-ruff==0.16.5
+ruff==0.16.6
     # via futbol-analytics
 scikit-learn==1.7.2 ; python_full_version < '3.11'
     # via futbol-analytics
