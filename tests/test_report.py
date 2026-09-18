@@ -70,6 +70,8 @@ def tabla() -> pd.DataFrame:
             "minutes": minutos,
             "npxg_p90": 0.4,
             "xa_p90": 0.2,
+            "shots_p90": 2.5,
+            "key_passes_p90": 1.2,
             "prog_passes_p90": 3.0,
             "prog_carries_p90": 2.0,
             "dribbles_cmp_p90": 1.5,
@@ -87,7 +89,7 @@ def tabla() -> pd.DataFrame:
 def test_player_report_pdf_genera_un_pdf_valido():
     pdf = report.player_report_pdf(tabla(), eventos(), "Jugadora Test", "Competición Test")
     assert pdf[:5] == b"%PDF-"
-    assert len(pdf) > 10_000  # contiene los cuatro paneles renderizados
+    assert len(pdf) > 10_000  # dos páginas, con foto de cabecera, radar y cinco paneles
 
 
 def test_player_report_pdf_incrusta_foto_si_hay_url(monkeypatch):
@@ -123,15 +125,15 @@ def _png_de(width: int, height: int) -> bytes:
     return buf.getvalue()
 
 
-def test_embed_photo_reduce_una_foto_de_baja_resolucion(monkeypatch):
+def test_embed_image_reduce_una_imagen_de_baja_resolucion(monkeypatch):
     # avatar pequeño real (TheSportsDB/Sportmonks): estirarlo a la caja
     # completa lo dejaría pixelado, así que la caja se encoge en su lugar.
     # original=True: la caja que se pidió, antes de que matplotlib ajuste
     # la posición "activa" por su propio letterboxing de aspecto (aparte).
     monkeypatch.setattr(report.photos, "fetch_bytes", lambda url: _png_de(40, 40))
-    fig = plt.figure(figsize=(8.27, 11.69))
+    fig = plt.figure(figsize=report.PAGE_SIZE)
     try:
-        assert report._embed_photo(fig, "https://img/pequena.png", (0.06, 0.7, 0.3, 0.2))
+        assert report._embed_image(fig, "https://img/pequena.png", (0.06, 0.7, 0.3, 0.2))
         box = fig.axes[-1].get_position(original=True)
         assert box.width < 0.3
         assert box.height < 0.2
@@ -139,14 +141,23 @@ def test_embed_photo_reduce_una_foto_de_baja_resolucion(monkeypatch):
         plt.close(fig)
 
 
-def test_embed_photo_no_encoge_una_foto_de_alta_resolucion(monkeypatch):
+def test_embed_image_no_encoge_una_imagen_de_alta_resolucion(monkeypatch):
     monkeypatch.setattr(report.photos, "fetch_bytes", lambda url: _png_de(2000, 2000))
-    fig = plt.figure(figsize=(8.27, 11.69))
+    fig = plt.figure(figsize=report.PAGE_SIZE)
     try:
-        assert report._embed_photo(fig, "https://img/grande.png", (0.06, 0.7, 0.3, 0.2))
+        assert report._embed_image(fig, "https://img/grande.png", (0.06, 0.7, 0.3, 0.2))
         box = fig.axes[-1].get_position(original=True)
         assert box.width == pytest.approx(0.3)
         assert box.height == pytest.approx(0.2)
+    finally:
+        plt.close(fig)
+
+
+def test_embed_image_sin_url_no_dibuja_nada():
+    fig = plt.figure(figsize=report.PAGE_SIZE)
+    try:
+        assert not report._embed_image(fig, None, (0.06, 0.7, 0.3, 0.2))
+        assert len(fig.axes) == 0
     finally:
         plt.close(fig)
 
@@ -223,32 +234,38 @@ def test_ficha_report_pdf_prefiere_el_nombre_mas_completo():
     assert pdf[:5] == b"%PDF-"
 
 
-def test_header_band_incrusta_escudo_si_hay_url(monkeypatch):
+def test_hero_band_incrusta_escudo_si_hay_url(monkeypatch):
     monkeypatch.setattr(report.photos, "fetch_bytes", lambda url: _png_de(300, 300))
-    fig = plt.figure(figsize=(8.27, 11.69))
+    fig = plt.figure(figsize=report.PAGE_SIZE)
     try:
         n_antes = len(fig.axes)
-        report._header_band(fig, "Título", height=0.075, crest_url="https://img/escudo.png")
-        assert len(fig.axes) == n_antes + 2  # la franja de color + el escudo
+        report._hero_band(
+            fig, "Nombre", "Posición", [("Equipo", "X")], None, "https://img/escudo.png", hero_h=0.27
+        )
+        assert len(fig.axes) == n_antes + 2  # foto de cabecera + escudo
     finally:
         plt.close(fig)
 
 
-def test_header_band_sin_url_no_anade_ejes_de_escudo():
-    fig = plt.figure(figsize=(8.27, 11.69))
+def test_hero_band_sin_escudo_no_anade_eje_extra():
+    fig = plt.figure(figsize=report.PAGE_SIZE)
     try:
-        report._header_band(fig, "Título", height=0.075)
-        assert len(fig.axes) == 1  # solo la franja
+        n_antes = len(fig.axes)
+        report._hero_band(fig, "Nombre", "Posición", [("Equipo", "X")], None, None, hero_h=0.27)
+        assert len(fig.axes) == n_antes + 1  # solo la foto de cabecera (placeholder si no hay URL)
     finally:
         plt.close(fig)
 
 
-def test_header_band_escudo_caido_no_revienta(monkeypatch):
+def test_hero_band_escudo_caido_no_revienta(monkeypatch):
     monkeypatch.setattr(report.photos, "fetch_bytes", lambda url: None)
-    fig = plt.figure(figsize=(8.27, 11.69))
+    fig = plt.figure(figsize=report.PAGE_SIZE)
     try:
-        report._header_band(fig, "Título", height=0.075, crest_url="https://img/caido.png")
-        assert len(fig.axes) == 1  # sin descarga, sin eje extra
+        n_antes = len(fig.axes)
+        report._hero_band(
+            fig, "Nombre", "Posición", [("Equipo", "X")], None, "https://img/caido.png", hero_h=0.27
+        )
+        assert len(fig.axes) == n_antes + 1  # solo la foto (sin escudo, la descarga falló)
     finally:
         plt.close(fig)
 

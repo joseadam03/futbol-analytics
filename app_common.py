@@ -199,7 +199,7 @@ def informe_pdf(
     comp_label: str,
     basis: str = "position_group",
 ) -> bytes:
-    """Informe-CV en PDF del jugador (siempre en tema claro, para imprimir)."""
+    """Informe-CV en PDF del jugador (siempre en tema oscuro, con foto de cabecera)."""
     table = build_table(provider_key, competition_id, season_id, min_minutes, basis)
     events = load_events(provider_key, competition_id, season_id)
     prow = table[table["player"] == player].iloc[0]
@@ -215,7 +215,7 @@ def informe_pdf(
             crest_url=crest_of(str(prow["team"])),
         )
     finally:
-        viz.use_theme(theme())  # el informe fuerza tema claro; restaurar el de la app
+        viz.use_theme(theme())  # el informe fuerza tema oscuro; restaurar el de la app
 
 
 @st.cache_data(show_spinner=False)
@@ -225,7 +225,7 @@ def ficha_informe_pdf(ficha: dict | None, ficha_sm: dict | None, query: str) -> 
     try:
         return report.ficha_report_pdf(ficha, ficha_sm, query, crest_url=crest_of(equipo) if equipo else None)
     finally:
-        viz.use_theme(theme())  # el informe fuerza tema claro; restaurar el de la app
+        viz.use_theme(theme())  # el informe fuerza tema oscuro; restaurar el de la app
 
 
 def cached_competitions(provider_key: str) -> pd.DataFrame:

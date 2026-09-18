@@ -19,6 +19,7 @@ from scipy.ndimage import gaussian_filter
 # Paleta validada (accesibilidad/daltonismo) en variante clara y oscura.
 _LIGHT = {
     "SURFACE": "#fcfcfb",
+    "PANEL": "#f3f2ef",
     "INK": "#0b0b0b",
     "INK_2": "#52514e",
     "MUTED": "#898781",
@@ -34,6 +35,7 @@ _LIGHT = {
 }
 _DARK = {
     "SURFACE": "#1a1a19",
+    "PANEL": "#242423",
     "INK": "#ffffff",
     "INK_2": "#c3c2b7",
     "MUTED": "#898781",
@@ -48,7 +50,7 @@ _DARK = {
     "SEQ": ["#1a1a19", "#104281", "#1c5cab", "#3987e5", "#86b6ef", "#cde2fb"],
 }
 
-SURFACE = INK = INK_2 = MUTED = GRID = BASELINE = BLUE = ORANGE = AQUA = YELLOW = MAGENTA = RING = ""
+SURFACE = PANEL = INK = INK_2 = MUTED = GRID = BASELINE = BLUE = ORANGE = AQUA = YELLOW = MAGENTA = RING = ""
 SEQ_BLUE = None
 # orden fijo de color por serie (identidad, nunca por rango) — mismos 5 primeros
 # slots del método de paleta categórica documentado para el proyecto, ya
@@ -122,7 +124,12 @@ def radar_chart(
     competition_label: str,
     display: str | None = None,
     pool_label: str | None = None,
+    header: bool = True,
 ):
+    """Con `header=False` omite título/subtítulo y usa una figura más
+    cuadrada — pensado para incrustarse como panel pequeño (p. ej. el
+    informe-CV), donde el nombre ya aparece en otra parte de la página.
+    """
     group = player_row["position_group"]
     pool_label = pool_label or group
     metrics = RADAR_METRICS.get(group, RADAR_METRICS["MF"])
@@ -138,7 +145,7 @@ def radar_chart(
         ring_width=1,
         center_circle_radius=1,
     )
-    fig, ax = radar.setup_axis(figsize=(8, 8.6))
+    fig, ax = radar.setup_axis(figsize=(8, 8.6) if header else (6.4, 6.4))
     fig.set_facecolor(SURFACE)
     ax.set_facecolor(SURFACE)
     radar.draw_circles(ax=ax, facecolor=RING, edgecolor=GRID)
@@ -151,12 +158,13 @@ def radar_chart(
     radar.draw_range_labels(ax=ax, fontsize=8, color=MUTED)
     radar.draw_param_labels(ax=ax, fontsize=10, color=INK)
 
-    _header(
-        fig,
-        display or player_row["player"],
-        f"{player_row['team']}  ·  {competition_label}  ·  {player_row['minutes']:.0f} min\n"
-        f"Percentiles per-90 vs. {pool_label} de la competición",
-    )
+    if header:
+        _header(
+            fig,
+            display or player_row["player"],
+            f"{player_row['team']}  ·  {competition_label}  ·  {player_row['minutes']:.0f} min\n"
+            f"Percentiles per-90 vs. {pool_label} de la competición",
+        )
     return fig
 
 
@@ -559,6 +567,116 @@ def pass_map(events: pd.DataFrame, player: str, competition_label: str, display:
     ax.legend(handles=handles, loc="lower left", fontsize=9, frameon=False, labelcolor=INK_2)
 
     _header(fig, display or player, f"{competition_label}  ·  Pases progresivos y pases clave  ·  ataca →")
+    return fig
+
+
+def _duel_type_eq(ev: pd.DataFrame, value: str) -> pd.Series:
+    """Compara duel_type de forma segura: la columna puede faltar del todo en algunos datasets."""
+    if "duel_type" not in ev.columns:
+        return pd.Series(False, index=ev.index)
+    return ev["duel_type"] == value
+
+
+def progressive_actions_map(
+    events: pd.DataFrame, player: str, competition_label: str, display: str | None = None
+):
+    """Pases progresivos (azul) y conducciones progresivas (naranja) del jugador.
+
+    Complementa pass_map (que separa progresivos de los que generaron tiro):
+    aquí se ve también la progresión llevando el balón (Carry), que pass_map
+    no traza porque no es un pase. Mismo umbral que metrics.player_metrics
+    (is_progressive con min_advance=5.0 para conducciones).
+    """
+    from .metrics import SET_PIECE_PASS_TYPES, is_progressive
+
+    ev = _player_events(events, player)
+    passes = ev[(ev["type"] == "Pass") & ev["pass_end_location"].notna()].copy()
+    completed = passes[passes["pass_outcome"].isna()] if "pass_outcome" in passes.columns else passes
+    open_play = (
+        completed[~completed["pass_type"].isin(SET_PIECE_PASS_TYPES)]
+        if "pass_type" in completed.columns
+        else completed
+    )
+    prog_passes = open_play[is_progressive(open_play["location"], open_play["pass_end_location"])]
+
+    if "carry_end_location" in ev.columns:
+        carries = ev[(ev["type"] == "Carry") & ev["carry_end_location"].notna()].copy()
+        prog_carries = carries[
+            is_progressive(carries["location"], carries["carry_end_location"], min_advance=5.0)
+        ]
+    else:
+        prog_carries = ev.iloc[0:0]
+
+    pitch = Pitch(pitch_type="statsbomb", pitch_color=SURFACE, line_color=BASELINE, linewidth=1)
+    fig, ax = pitch.draw(figsize=(10, 7.4))
+    fig.set_facecolor(SURFACE)
+
+    for df, col_end, color, alpha in (
+        (prog_passes, "pass_end_location", BLUE, 0.55),
+        (prog_carries, "carry_end_location", ORANGE, 0.75),
+    ):
+        if df.empty:
+            continue
+        pitch.lines(
+            df["location"].str[0].astype(float),
+            df["location"].str[1].astype(float),
+            df[col_end].str[0].astype(float),
+            df[col_end].str[1].astype(float),
+            comet=True,
+            color=color,
+            linewidth=3,
+            alpha=alpha,
+            ax=ax,
+            zorder=2,
+        )
+
+    handles = [
+        Line2D([], [], color=BLUE, lw=3, label=f"Pases progresivos ({len(prog_passes)})"),
+        Line2D([], [], color=ORANGE, lw=3, label=f"Conducciones progresivas ({len(prog_carries)})"),
+    ]
+    ax.legend(handles=handles, loc="lower left", fontsize=9, frameon=False, labelcolor=INK_2)
+
+    _header(fig, display or player, f"{competition_label}  ·  Progresión con pase y conducción  ·  ataca →")
+    return fig
+
+
+def defensive_actions_map(
+    events: pd.DataFrame, player: str, competition_label: str, display: str | None = None
+):
+    """Presiones, entradas, intercepciones, bloqueos y despejes del jugador en un mapa.
+
+    Tipos de evento verificados contra metrics.player_metrics (mismos nombres
+    exactos que ya usa la app): Pressure, duel_type == "Tackle", Interception,
+    Block, Clearance.
+    """
+    ev = _player_events(events, player)
+    kinds = [
+        ("Presión", ev["type"] == "Pressure", BLUE),
+        ("Entrada", _duel_type_eq(ev, "Tackle"), ORANGE),
+        ("Intercepción", ev["type"] == "Interception", AQUA),
+        ("Bloqueo/despeje", ev["type"].isin(["Block", "Clearance"]), MUTED),
+    ]
+
+    pitch = Pitch(pitch_type="statsbomb", pitch_color=SURFACE, line_color=BASELINE, linewidth=1)
+    fig, ax = pitch.draw(figsize=(10, 7.4))
+    fig.set_facecolor(SURFACE)
+
+    handles = []
+    for label, mask, color in kinds:
+        sub = ev[mask.fillna(False)]
+        if sub.empty:
+            continue
+        x = sub["location"].str[0].astype(float)
+        y = sub["location"].str[1].astype(float)
+        pitch.scatter(x, y, s=70, ax=ax, facecolor=color, edgecolor=SURFACE, linewidth=0.8, zorder=2)
+        handles.append(
+            Line2D([], [], marker="o", ls="", mfc=color, mec="none", ms=9, label=f"{label} ({len(sub)})")
+        )
+
+    if handles:
+        ax.legend(handles=handles, loc="lower left", fontsize=9, frameon=False, labelcolor=INK_2)
+
+    _header(fig, display or player, f"{competition_label}  ·  Acciones defensivas  ·  ataca →")
     return fig
 
 
