@@ -176,6 +176,25 @@ def test_ficha_report_pdf_completa_con_foto_bio_y_temporadas(monkeypatch):
     assert pdf[:5] == b"%PDF-"
 
 
+def test_ficha_report_pdf_con_traspasos_no_revienta(monkeypatch):
+    monkeypatch.setattr(report.photos, "fetch_bytes", lambda url: _png_bytes())
+    ficha_sm = {
+        "nombre": "Franculino Djú",
+        "temporadas": [{"season_name": "2025/2026", "goals": 17.0}],
+        "traspasos": [
+            {"fecha": "2023-07-01", "origen": "Benfica U23", "destino": "FC Midtjylland", "importe": None},
+            {
+                "fecha": "2026-09-02",
+                "origen": "FC Midtjylland",
+                "destino": "Trabzonspor",
+                "importe": 17000000,
+            },
+        ],
+    }
+    pdf = report.ficha_report_pdf(None, ficha_sm, "Franculino Djú")
+    assert pdf[:5] == b"%PDF-"
+
+
 def test_ficha_report_pdf_sin_ningun_dato_no_revienta():
     pdf = report.ficha_report_pdf(None, None, "Jugador Desconocido")
     assert pdf[:5] == b"%PDF-"

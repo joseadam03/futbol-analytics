@@ -348,6 +348,7 @@ def ficha_report_pdf(
     nombre = max(candidatos_nombre, key=len) if candidatos_nombre else query
     foto_url = (ficha or {}).get("foto") or (ficha_sm or {}).get("foto")
     temporadas = (ficha_sm or {}).get("temporadas") or []
+    traspasos = (ficha_sm or {}).get("traspasos") or []
     # se calcula ya para poder colocarla justo bajo la cabecera (ver más abajo),
     # no donde sobre sitio al final: es lo primero que alguien debería leer.
     fortalezas, a_vigilar = narrative.season_strengths(temporadas)
@@ -489,6 +490,26 @@ def ficha_report_pdf(
             va="top",
         )
         y -= 0.03
+
+    if traspasos:
+        _section_heading(fig, 0.06, y, "Traspasos reales (Sportmonks)")
+        y -= 0.022
+        filas_traspasos = sorted(traspasos, key=lambda t: t.get("fecha") or "", reverse=True)
+        for t in filas_traspasos[:3]:
+            importe = t.get("importe")
+            importe_txt = f"{importe:,.0f} €".replace(",", ".") if importe else "importe no público"
+            origen = t.get("origen") or "?"
+            destino = t.get("destino") or "?"
+            fig.text(
+                0.06,
+                y,
+                _truncate(f"{t.get('fecha', '?')} — {origen} → {destino} · {importe_txt}", 80),
+                fontsize=8,
+                color=viz.INK_2,
+                va="top",
+            )
+            y -= 0.017
+        y -= 0.015
 
     fig.text(
         0.06,
