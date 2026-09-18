@@ -66,6 +66,7 @@ with st.form("crear_usuario", clear_on_submit=True):
         wyscout_secret = st.text_input("Wyscout — Client Secret", type="password")
         sb_user = st.text_input("StatsBomb — usuario")
         sb_password = st.text_input("StatsBomb — contraseña", type="password")
+        sportmonks_token = st.text_input("Sportmonks — API Token", type="password")
     enviado = st.form_submit_button("Crear usuario")
 
 if enviado:
@@ -90,6 +91,8 @@ if enviado:
         if sb_user and sb_password:
             datos_usuario["statsbomb_user"] = sb_user
             datos_usuario["statsbomb_password"] = sb_password
+        if sportmonks_token:
+            datos_usuario["sportmonks_api_token"] = sportmonks_token
         config["credentials"]["usernames"][usuario] = datos_usuario
         auth.guardar_config(config)
         st.success(f"Usuario «{usuario}» creado — ya puede entrar con su contraseña.")

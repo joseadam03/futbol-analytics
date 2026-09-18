@@ -354,6 +354,7 @@ def test_pagina_admin_guarda_claves_de_api_opcionales(monkeypatch, tmp_path):
     _campo(at, "Wyscout — Client Secret").set_value("secreto-club")
     _campo(at, "StatsBomb — usuario").set_value("usuario-club")
     _campo(at, "StatsBomb — contraseña").set_value("clave-club")
+    _campo(at, "Sportmonks — API Token").set_value("token-club")
     _boton(at, "Crear usuario").click().run()
     assert not at.exception, [str(e.value) for e in at.exception]
 
@@ -362,6 +363,7 @@ def test_pagina_admin_guarda_claves_de_api_opcionales(monkeypatch, tmp_path):
     assert datos["wyscout_client_secret"] == "secreto-club"
     assert datos["statsbomb_user"] == "usuario-club"
     assert datos["statsbomb_password"] == "clave-club"
+    assert datos["sportmonks_api_token"] == "token-club"
 
 
 def test_pagina_admin_sin_claves_de_api_no_las_guarda(monkeypatch, tmp_path):
@@ -388,6 +390,7 @@ def test_pagina_admin_sin_claves_de_api_no_las_guarda(monkeypatch, tmp_path):
     datos = yaml.safe_load(config_path.read_text())["credentials"]["usernames"]["sin_claves"]
     assert "wyscout_client_id" not in datos
     assert "statsbomb_user" not in datos
+    assert "sportmonks_api_token" not in datos
 
 
 def test_usuario_con_claves_propias_se_inyectan_en_su_sesion(monkeypatch, tmp_path):
@@ -402,6 +405,7 @@ def test_usuario_con_claves_propias_se_inyectan_en_su_sesion(monkeypatch, tmp_pa
                     "wyscout_client_secret": "secreto-de-jose",
                     "statsbomb_user": "usuario-sb-de-jose",
                     "statsbomb_password": "clave-sb-de-jose",
+                    "sportmonks_api_token": "token-sm-de-jose",
                 }
             }
         },
@@ -416,13 +420,14 @@ def test_usuario_con_claves_propias_se_inyectan_en_su_sesion(monkeypatch, tmp_pa
     app_path = tmp_path / "mini_app.py"
     app_path.write_text(
         "import streamlit as st\n"
-        "from futbol_analytics import auth\n"
+        "from futbol_analytics import auth, sportmonks\n"
         "from futbol_analytics.providers.wyscout import WyscoutProvider\n"
         "from futbol_analytics.providers.statsbomb import StatsBombProvider\n"
         "if auth.requiere_login():\n"
         "    wy = WyscoutProvider()._auth\n"
         "    sb = StatsBombProvider()._creds\n"
-        "    st.write(f\"CREDS:{wy[0]}:{wy[1]}:{sb['user']}:{sb['passwd']}\")\n"
+        "    sm = sportmonks._token()\n"
+        "    st.write(f\"CREDS:{wy[0]}:{wy[1]}:{sb['user']}:{sb['passwd']}:{sm}\")\n"
     )
 
     at = AppTest.from_file(str(app_path), default_timeout=60)
@@ -431,4 +436,7 @@ def test_usuario_con_claves_propias_se_inyectan_en_su_sesion(monkeypatch, tmp_pa
     at.text_input[1].set_value("clave123")
     at.button[0].click().run()
     assert not at.exception, [str(e.value) for e in at.exception]
-    assert at.markdown[-1].value == "CREDS:id-de-jose:secreto-de-jose:usuario-sb-de-jose:clave-sb-de-jose"
+    assert (
+        at.markdown[-1].value
+        == "CREDS:id-de-jose:secreto-de-jose:usuario-sb-de-jose:clave-sb-de-jose:token-sm-de-jose"
+    )

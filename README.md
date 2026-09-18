@@ -108,9 +108,9 @@ integradas:
   cambiada, desbloquea la página **Admin**, un panel para crear cuentas
   nuevas con un formulario, sin tocar YAML ni la terminal.
 
-Para entrar con tus propios datos (StatsBomb real, o Wyscout con tus
-claves), lo más rápido es que alguien con la cuenta admin te cree un usuario
-desde el panel **Admin** de la propia app. Como alternativa desde la
+Para entrar con tus propios datos (StatsBomb real, Wyscout o Sportmonks con
+tus claves), lo más rápido es que alguien con la cuenta admin te cree un
+usuario desde el panel **Admin** de la propia app. Como alternativa desde la
 terminal:
 
 ```bash
@@ -174,8 +174,10 @@ fuera de los open data:
   de eventos es un *timeline* de incidencias sin coordenadas (18 eventos en
   todo un partido, ninguno con `location`), así que no puede alimentar radar,
   mapas ni el modelo de xG — de ahí que viva en `sportmonks.py` en vez de
-  implementar el contrato `Provider`. Requiere `SPORTMONKS_API_TOKEN`; sin él,
-  el Buscador sigue funcionando igual, solo sin esa sección.
+  implementar el contrato `Provider`. Requiere un token — `SPORTMONKS_API_TOKEN`
+  en el `.env` del despliegue, o `sportmonks_api_token` por usuario desde el
+  panel **Admin**; sin ninguno de los dos, el Buscador sigue funcionando
+  igual, solo sin esa sección.
 
 ## Metodología
 

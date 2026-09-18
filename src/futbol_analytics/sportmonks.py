@@ -36,6 +36,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from contextvars import ContextVar
 
 import requests
 
@@ -46,6 +47,22 @@ log = logging.getLogger(__name__)
 API_BASE = "https://api.sportmonks.com/v3/football"
 CACHE_FILE = CACHE_DIR / "sportmonks_players.json"
 TIMEOUT = 15
+
+# Token del usuario logueado para esta sesión (ver auth.py). Un ContextVar y
+# no os.environ: streamlit sirve varias sesiones concurrentes en el mismo
+# proceso, y escribir en el entorno filtraría el token de un usuario a las
+# peticiones de otro — mismo patrón que providers/statsbomb.py. Sin token de
+# sesión, cae a SPORTMONKS_API_TOKEN (el del .env de todo el despliegue).
+_TOKEN: ContextVar[str | None] = ContextVar("sportmonks_token", default=None)
+
+
+def set_session_credentials(token: str) -> None:
+    _TOKEN.set(token)
+
+
+def _token() -> str:
+    return _TOKEN.get() or os.environ.get("SPORTMONKS_API_TOKEN", "")
+
 
 # nombre de la estadística (tal y como la nombra Sportmonks) -> clave interna
 STAT_MAP = {
@@ -77,11 +94,11 @@ class ServiceUnavailable(RuntimeError):
 
 
 def available() -> bool:
-    return bool(os.environ.get("SPORTMONKS_API_TOKEN"))
+    return bool(_token())
 
 
 def _get(path: str, **params) -> dict:
-    token = os.environ.get("SPORTMONKS_API_TOKEN", "")
+    token = _token()
     if not token:
         raise ServiceUnavailable("Falta SPORTMONKS_API_TOKEN")
     params["api_token"] = token

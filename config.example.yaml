@@ -31,6 +31,10 @@ credentials:
       # los open data públicos, que no necesitan nada de esto).
       # statsbomb_user: ...
       # statsbomb_password: ...
+      # Opcional: igual, pero para Sportmonks (ficha de temporadas y
+      # traspasos reales en el Buscador). Sin él cae al SPORTMONKS_API_TOKEN
+      # del .env de todo el despliegue, si lo hay.
+      # sportmonks_api_token: ...
 
 cookie:
   # Nombre de la cookie de sesión (el que quieras).

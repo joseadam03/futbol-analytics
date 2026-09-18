@@ -117,6 +117,22 @@ def test_available_depende_del_token(monkeypatch):
     assert sportmonks.available() is False
 
 
+def test_token_de_sesion_tiene_prioridad_sobre_el_del_entorno(monkeypatch):
+    # ContextVar directo, no la fixture de sesión: hay que restaurarlo a mano
+    # para no filtrar este token a los demás tests del proceso.
+    sportmonks.set_session_credentials("token-de-club")
+    try:
+        assert sportmonks.available() is True
+        vistos = []
+        monkeypatch.setattr(
+            sportmonks.requests, "get", make_get([FakeResponse(payload=SEARCH_PAYLOAD)], vistos)
+        )
+        sportmonks.search_players("Dju")
+        assert vistos[0][1]["api_token"] == "token-de-club"
+    finally:
+        sportmonks._TOKEN.set(None)
+
+
 def test_sin_token_lanza_service_unavailable(monkeypatch):
     monkeypatch.delenv("SPORTMONKS_API_TOKEN", raising=False)
     with pytest.raises(sportmonks.ServiceUnavailable):
