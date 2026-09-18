@@ -152,6 +152,20 @@ else:
                     use_container_width=True,
                     hide_index=True,
                 )
+
+            traspasos = ficha_sm.get("traspasos") or []
+            if traspasos:
+                st.markdown("#### Traspasos reales (Sportmonks)")
+                st.caption(
+                    "Movimientos ya cerrados, con el importe cuando es público — no es una "
+                    "estimación de valor de mercado, es lo que de verdad se pagó."
+                )
+                for t in sorted(traspasos, key=lambda t: t.get("fecha") or "", reverse=True):
+                    origen = t.get("origen") or "origen desconocido"
+                    destino = t.get("destino") or "destino desconocido"
+                    importe = t.get("importe")
+                    importe_txt = f"{importe:,.0f} €".replace(",", ".") if importe else "importe no público"
+                    st.markdown(f"**{t.get('fecha', '?')}** — {origen} → {destino} · {importe_txt}")
     else:
         st.caption(
             "💡 Con un token de Sportmonks (`SPORTMONKS_API_TOKEN` en `.env`) esta ficha "

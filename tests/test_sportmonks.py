@@ -3,7 +3,9 @@
 Los payloads reproducen exactamente la forma verificada contra la API real
 (búsqueda de Franculino Djú, Superliga danesa): un bloque de estadísticas
 por (equipo, temporada), cada uno con una lista `details` de
-`{type: {name}, value: {total: ...}}`.
+`{type: {name}, value: {total: ...}}`. Los traspasos también son los reales
+de ese mismo jugador (Benfica U23 -> Midtjylland 2023 sin importe público,
+Midtjylland -> Trabzonspor 2026 por 17M).
 """
 
 import json
@@ -35,6 +37,29 @@ SEARCH_PAYLOAD = {
             "image_path": "https://cdn.sportmonks.com/x.png",
         }
     ]
+}
+
+TRANSFERS_PAYLOAD = {
+    "data": {
+        "id": 37597771,
+        "display_name": "Franculino",
+        "transfers": [
+            {
+                "id": 388730,
+                "date": "2023-07-01",
+                "amount": None,
+                "fromTeam": {"id": 230221, "name": "Benfica U23"},
+                "toTeam": {"id": 939, "name": "FC Midtjylland"},
+            },
+            {
+                "id": 596348,
+                "date": "2026-09-02",
+                "amount": 17000000,
+                "fromTeam": {"id": 939, "name": "FC Midtjylland"},
+                "toTeam": {"id": 688, "name": "Trabzonspor"},
+            },
+        ],
+    }
 }
 
 PLAYER_PAYLOAD = {
@@ -153,16 +178,68 @@ def test_player_ficha_completa_y_cachea(monkeypatch):
     monkeypatch.setattr(
         sportmonks.requests,
         "get",
-        make_get([FakeResponse(payload=SEARCH_PAYLOAD), FakeResponse(payload=PLAYER_PAYLOAD)], calls),
+        make_get(
+            [
+                FakeResponse(payload=SEARCH_PAYLOAD),
+                FakeResponse(payload=PLAYER_PAYLOAD),
+                FakeResponse(payload=TRANSFERS_PAYLOAD),
+            ],
+            calls,
+        ),
     )
     ficha = sportmonks.player_ficha("Franculino")
     assert ficha["nombre"] == "Franculino"
     assert len(ficha["temporadas"]) == 2
+    assert len(ficha["traspasos"]) == 2
 
     # segunda llamada: sale de la caché en disco, sin tocar la red
     ficha2 = sportmonks.player_ficha("Franculino")
     assert ficha2 == ficha
-    assert len(calls) == 2
+    assert len(calls) == 3
+
+
+def test_extract_transfers_mapea_origen_destino_e_importe():
+    filas = sportmonks._extract_transfers_from_payload(TRANSFERS_PAYLOAD)
+    assert len(filas) == 2
+
+    sin_importe = next(f for f in filas if f["fecha"] == "2023-07-01")
+    assert sin_importe["origen"] == "Benfica U23"
+    assert sin_importe["destino"] == "FC Midtjylland"
+    assert sin_importe["importe"] is None  # no inventado cuando no es público
+
+    con_importe = next(f for f in filas if f["fecha"] == "2026-09-02")
+    assert con_importe["origen"] == "FC Midtjylland"
+    assert con_importe["destino"] == "Trabzonspor"
+    assert con_importe["importe"] == 17000000
+
+
+def test_extract_transfers_tolera_grafia_en_minusculas():
+    payload = {
+        "data": {
+            "transfers": [
+                {
+                    "date": "2020-01-01",
+                    "amount": None,
+                    "fromteam": {"name": "Club A"},
+                    "toteam": {"name": "Club B"},
+                }
+            ]
+        }
+    }
+    filas = sportmonks._extract_transfers_from_payload(payload)
+    assert filas[0]["origen"] == "Club A"
+    assert filas[0]["destino"] == "Club B"
+
+
+def test_extract_transfers_payload_vacio():
+    assert sportmonks._extract_transfers_from_payload({}) == []
+    assert sportmonks._extract_transfers_from_payload({"data": {}}) == []
+
+
+def test_player_transfers(monkeypatch):
+    monkeypatch.setattr(sportmonks.requests, "get", make_get([FakeResponse(payload=TRANSFERS_PAYLOAD)], []))
+    filas = sportmonks.player_transfers(37597771)
+    assert len(filas) == 2
 
 
 def test_player_ficha_sin_resultados_se_cachea_como_none(monkeypatch):

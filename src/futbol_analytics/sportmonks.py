@@ -21,6 +21,14 @@ Esquema verificado en `/players/{id}?include=statistics.details.type`:
 cada jugador trae un bloque de estadísticas por (equipo, temporada), y
 cada bloque una lista de `details` con `type.name` (p. ej. "Goals",
 "Minutes Played") y `value` (un dict, normalmente con clave "total").
+
+También trae traspasos reales ya cerrados —no una estimación de valor de
+mercado, un hecho verificable— vía `include=transfers.fromTeam;transfers.toTeam`
+(esquema verificado con el mismo jugador: Franculino Djú, Benfica U23 ->
+Midtjylland en 2023 sin importe público, Midtjylland -> Trabzonspor en 2026
+por 17M). `amount` es `None` cuando el importe no es público; cuando lo es,
+se asume EUR (no confirmado en la documentación, pero es el estándar del
+sector y de un proveedor europeo).
 """
 
 from __future__ import annotations
@@ -170,6 +178,45 @@ def player_seasons(player_id: int) -> list[dict]:
     return _extract_seasons_from_payload(data)
 
 
+def _team_name(transfer: dict, prefix: str) -> str | None:
+    """Nombre del equipo origen/destino de un traspaso, tolerando ambas grafías del include."""
+    bloque = transfer.get(f"{prefix}Team") or transfer.get(f"{prefix}team")
+    nombre = bloque.get("name") if isinstance(bloque, dict) else None
+    return nombre if isinstance(nombre, str) else None
+
+
+def _extract_transfers_from_payload(data: dict) -> list[dict]:
+    """Parsea la respuesta de /players/{id}?include=transfers.fromTeam;transfers.toTeam.
+
+    Traspasos reales ya cerrados, no una estimación de valor de mercado.
+    `importe` es None cuando el dato no es público (no se inventa un número).
+    """
+    ficha = data.get("data") or {}
+    traspasos = ficha.get("transfers") or []
+    if not isinstance(traspasos, list):
+        return []
+
+    filas = []
+    for t in traspasos:
+        if not isinstance(t, dict):
+            continue
+        filas.append(
+            {
+                "fecha": t.get("date"),
+                "origen": _team_name(t, "from"),
+                "destino": _team_name(t, "to"),
+                "importe": t.get("amount"),
+            }
+        )
+    return filas
+
+
+def player_transfers(player_id: int) -> list[dict]:
+    """Traspasos reales ya cerrados de un jugador, con importe cuando es público."""
+    data = _get(f"/players/{player_id}", include="transfers.fromTeam;transfers.toTeam")
+    return _extract_transfers_from_payload(data)
+
+
 def player_ficha(name: str) -> dict | None:
     """Ficha con estadísticas de temporada del primer jugador que case con `name`.
 
@@ -188,8 +235,10 @@ def player_ficha(name: str) -> dict | None:
         return None
 
     jugador = candidatos[0]
-    temporadas = player_seasons(int(jugador["id"]))
-    ficha = {**jugador, "temporadas": temporadas}
+    player_id = int(jugador["id"])
+    temporadas = player_seasons(player_id)
+    traspasos = player_transfers(player_id)
+    ficha = {**jugador, "temporadas": temporadas, "traspasos": traspasos}
     cache[name] = ficha
     _save_cache(cache)
     return ficha
