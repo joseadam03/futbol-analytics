@@ -92,7 +92,7 @@ more-itertools==11.1.0
     # via inflect
 mplsoccer==1.8.0
     # via futbol-analytics
-narwhals==2.25.0
+narwhals==2.26.0
     # via
     #   altair
     #   scikit-learn
