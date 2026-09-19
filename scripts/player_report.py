@@ -72,7 +72,7 @@ def main() -> None:
     minutes = provider.minutes_played(args.competition, args.season, events, refresh=args.refresh)
 
     table = metrics.player_metrics(events, minutes, min_minutes=args.min_minutes)
-    pct_cols = [f"{m}_p90" for m in metrics.COUNT_METRICS] + ["pass_pct", "npxg_per_shot"]
+    pct_cols = [f"{m}_p90" for m in metrics.COUNT_METRICS] + ["pass_pct", "npxg_per_shot", "save_pct"]
     table = metrics.percentiles(table, pct_cols, group_col=args.basis)
 
     player = find_player(table["player"].tolist(), args.player)

@@ -112,7 +112,15 @@ GROUP_KEY_PCT = {
         "xa_p90_pct",
     ],
 }
-GROUP_KEY_PCT["GK"] = GROUP_KEY_PCT["DF"]
+GROUP_KEY_PCT["GK"] = [
+    "saves_p90_pct",
+    "save_pct_pct",
+    "keeper_sweeper_p90_pct",
+    "collected_p90_pct",
+    "punches_p90_pct",
+    "pass_pct_pct",
+    "prog_passes_p90_pct",
+]
 
 # contexto del jugador que acompaña a los rankings de fichajes
 PLAYER_CONTEXT_COLS = ["npxg_p90", "xa_p90", "prog_passes_p90", "pressures_p90", "padj_tack_int_p90"]

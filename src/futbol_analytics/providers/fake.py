@@ -119,6 +119,7 @@ class FakeProvider(Provider):
                 "under_pressure": None,
                 "play_pattern": "Regular Play",
                 "possession": None,
+                "goalkeeper_type": None,
             }
             base.update(kw)
             rows.append(base)
@@ -267,6 +268,27 @@ class FakeProvider(Provider):
                             dribble_outcome="Complete" if rng.random() < 0.6 else "Incomplete",
                             possession=posesion,
                         )
+
+                    # eventos "Goal Keeper" (paradas, goles encajados, salidas,
+                    # recogidas, puños) solo para el portero — subtipos
+                    # (goalkeeper_type) confirmados contra datos reales
+                    # cacheados en este repo (data/cache/events_43_106.pkl).
+                    if posicion == "Goalkeeper":
+                        for tipo, n in (
+                            ("Shot Saved", int(rng.poisson(3))),
+                            ("Goal Conceded", int(rng.poisson(1))),
+                            ("Keeper Sweeper", int(rng.poisson(1.5))),
+                            ("Collected", int(rng.poisson(4))),
+                            ("Punch", int(rng.poisson(0.8))),
+                        ):
+                            for _ in range(n):
+                                evento(
+                                    **comun,
+                                    type="Goal Keeper",
+                                    location=punto(6.0, 4.0),
+                                    goalkeeper_type=tipo,
+                                    possession=posesion,
+                                )
 
         return pd.DataFrame(rows)
 

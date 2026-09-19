@@ -121,10 +121,88 @@ def tabla() -> pd.DataFrame:
     return pd.DataFrame([fw("Jugadora Test", "Equipo X"), fw("S1", "Equipo Y"), fw("S2", "Equipo Y")])
 
 
+def eventos_portero() -> pd.DataFrame:
+    def ev(type_, **kw):
+        base = {
+            "match_id": 1,
+            "period": 1,
+            "team": "Equipo X",
+            "player": "Portero Test",
+            "type": type_,
+            "location": [6.0, 40.0],
+            "pass_end_location": None,
+            "pass_outcome": None,
+            "pass_type": None,
+            "pass_shot_assist": None,
+            "shot_type": None,
+            "shot_outcome": None,
+            "shot_statsbomb_xg": None,
+            "duel_type": None,
+            "goalkeeper_type": None,
+        }
+        base.update(kw)
+        return base
+
+    rows = [ev("Pass", location=[10.0, 40.0], pass_end_location=[40.0, 40.0])] * 4
+    rows += [ev("Goal Keeper", goalkeeper_type="Shot Saved")] * 3
+    rows += [ev("Goal Keeper", goalkeeper_type="Goal Conceded")]
+    rows += [ev("Goal Keeper", goalkeeper_type="Keeper Sweeper")] * 2
+    rows += [ev("Goal Keeper", goalkeeper_type="Collected")] * 4
+    rows += [ev("Goal Keeper", goalkeeper_type="Punch")]
+    # fit.teams_for_player calcula el estilo del equipo rival a partir de
+    # sus propios eventos (posesión, progresión...) — sin un segundo
+    # equipo en los eventos, team_style() no tiene nada que comparar.
+    rows += [
+        ev("Pass", team="Equipo Y", player="Rival", location=[50.0, 40.0], pass_end_location=[60.0, 40.0])
+    ] * 4
+    return pd.DataFrame(rows)
+
+
+def tabla_portero() -> pd.DataFrame:
+    # viz.RADAR_METRICS["GK"] y las listas CON BALÓN/SIN BALÓN de portero
+    # usan métricas propias (paradas, % de paradas, salidas, recogidas,
+    # puños), no las de fit.GROUP_KEY_PCT["GK"] (pensada para el motor de
+    # encaje) — de ahí no reutilizar ese fixture como en tabla().
+    fila = {
+        "player": "Portero Test",
+        "nickname": "Portero Test",
+        "team": "Equipo X",
+        "primary_position": "Goalkeeper",
+        "position_group": "GK",
+        "role": "Portero",
+        "minutes": 450.0,
+        "saves_p90": 2.0,
+        "save_pct": 75.0,
+        "keeper_sweeper_p90": 1.0,
+        "collected_p90": 3.0,
+        "punches_p90": 0.5,
+        "pass_pct": 82.0,
+        "passes_cmp_p90": 20.0,
+        "prog_passes_p90": 1.5,
+        "saves_p90_pct": 70.0,
+        "save_pct_pct": 65.0,
+        "keeper_sweeper_p90_pct": 55.0,
+        "collected_p90_pct": 60.0,
+        "punches_p90_pct": 45.0,
+        "pass_pct_pct": 50.0,
+        "prog_passes_p90_pct": 40.0,
+        "passes_cmp_p90_pct": 50.0,
+    }
+    return pd.DataFrame([fila])
+
+
 def test_player_report_pdf_genera_un_pdf_valido():
     pdf = report.player_report_pdf(tabla(), eventos(), "Jugadora Test", "Competición Test")
     assert pdf[:5] == b"%PDF-"
     assert len(pdf) > 10_000  # dos páginas, con foto de cabecera, radar y cinco paneles
+
+
+def test_player_report_pdf_portero_usa_metricas_propias():
+    # antes de este cambio, GK reutilizaba directamente las métricas de DF
+    # (viz.RADAR_METRICS["GK"] = RADAR_METRICS["DF"]) — un central no se
+    # describe igual que un portero.
+    pdf = report.player_report_pdf(tabla_portero(), eventos_portero(), "Portero Test", "Competición Test")
+    assert pdf[:5] == b"%PDF-"
 
 
 def test_player_report_pdf_incrusta_foto_si_hay_url(monkeypatch):

@@ -150,3 +150,82 @@ def test_position_role(position, role):
 
 def test_position_role_nan():
     assert pd.isna(metrics.position_role(np.nan))
+
+
+def test_player_metrics_calcula_estadisticas_de_portero():
+    # subtipos de evento "Goal Keeper" (goalkeeper_type) confirmados contra
+    # datos reales de StatsBomb (data/cache/events_43_106.pkl, Mundial 2022),
+    # no adivinados: "Shot Faced" es el evento genérico de cada tiro a
+    # puerta que recibe, no una parada en sí — no cuenta como parada.
+    def gk_event(tipo):
+        return {
+            "match_id": 1,
+            "period": 1,
+            "team": "Equipo X",
+            "player": "Portero Test",
+            "position": "Goalkeeper",
+            "type": "Goal Keeper",
+            "location": [6.0, 40.0],
+            "goalkeeper_type": tipo,
+        }
+
+    rows = (
+        [gk_event("Shot Faced")] * 5
+        + [gk_event("Shot Saved")] * 3
+        + [gk_event("Goal Conceded")] * 2
+        + [gk_event("Keeper Sweeper")] * 2
+        + [gk_event("Collected")] * 4
+        + [gk_event("Punch")] * 1
+    )
+    events = pd.DataFrame(rows)
+    minutos = pd.DataFrame(
+        [
+            {
+                "player": "Portero Test",
+                "nickname": "Portero Test",
+                "team": "Equipo X",
+                "minutes": 90.0,
+                "lineup_position": "Goalkeeper",
+            }
+        ]
+    )
+    tabla = metrics.player_metrics(events, minutos, min_minutes=0)
+    fila = tabla.iloc[0]
+    assert fila["saves"] == 3
+    assert fila["goals_conceded"] == 2
+    assert fila["keeper_sweeper"] == 2
+    assert fila["collected"] == 4
+    assert fila["punches"] == 1
+    # "Shot Faced" no cuenta como parada ni como gol encajado
+    assert fila["save_pct"] == pytest.approx(100 * 3 / 5)
+    assert fila["position_group"] == "GK"
+
+
+def test_player_metrics_save_pct_sin_tiros_a_puerta_es_nan():
+    events = pd.DataFrame(
+        [
+            {
+                "match_id": 1,
+                "period": 1,
+                "team": "Equipo X",
+                "player": "Portero Test",
+                "position": "Goalkeeper",
+                "type": "Pass",
+                "location": [6.0, 40.0],
+                "pass_outcome": None,
+            }
+        ]
+    )
+    minutos = pd.DataFrame(
+        [
+            {
+                "player": "Portero Test",
+                "nickname": "Portero Test",
+                "team": "Equipo X",
+                "minutes": 90.0,
+                "lineup_position": "Goalkeeper",
+            }
+        ]
+    )
+    tabla = metrics.player_metrics(events, minutos, min_minutes=0)
+    assert pd.isna(tabla.iloc[0]["save_pct"])

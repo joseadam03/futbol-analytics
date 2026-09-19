@@ -854,6 +854,12 @@ def player_report_pdf(
             "Recuperaciones": "Recup",
             "Bloqueos": "Bloq.",
             "Despejes": "Desp.",
+            "Paradas": "Parada",
+            "% de paradas": "% par.",
+            "Salidas": "Salida",
+            "Recogidas": "Recog.",
+            "Puños": "Puños",
+            "% de pase": "% pase",
         }
 
         def _abbr(label: str) -> str:
@@ -926,26 +932,51 @@ def player_report_pdf(
             ax_m.imshow(mpimg.imread(_panel_png(pf)))
 
         # --- Con balón / Sin balón / Mejores destinos ---
-        con_balon = [
-            ("Pases completados/90", "passes_cmp_p90"),
-            ("% de pase", "pass_pct"),
-            ("Pases progresivos/90", "prog_passes_p90"),
-            ("Conducciones prog./90", "prog_carries_p90"),
-            ("Regates/90", "dribbles_cmp_p90"),
-        ]
-        sin_balon = [
-            ("Presiones/90", "pressures_p90"),
-            ("Recuperaciones/90", "recoveries_p90"),
-            ("Entradas/90", "tackles_p90"),
-            ("Intercepciones/90", "interceptions_p90"),
-            ("Entradas+Int. PAdj/90", "padj_tack_int_p90"),
-        ]
+        # un portero no se describe con las mismas métricas que un jugador
+        # de campo (regates/entradas no dicen nada de su juego real, y le
+        # faltan las suyas propias: paradas, salidas, recogidas) — mismo
+        # fallo que ya tenía viz.RADAR_METRICS antes de este cambio, donde
+        # GK usaba directamente la lista de DF.
+        if group == "GK":
+            con_balon = [
+                ("Pases completados/90", "passes_cmp_p90"),
+                ("% de pase", "pass_pct"),
+                ("Pases progresivos/90", "prog_passes_p90"),
+            ]
+            sin_balon = [
+                ("Paradas/90", "saves_p90"),
+                ("% de paradas", "save_pct"),
+                ("Salidas/90", "keeper_sweeper_p90"),
+                ("Recogidas/90", "collected_p90"),
+                ("Puños/90", "punches_p90"),
+            ]
+        else:
+            con_balon = [
+                ("Pases completados/90", "passes_cmp_p90"),
+                ("% de pase", "pass_pct"),
+                ("Pases progresivos/90", "prog_passes_p90"),
+                ("Conducciones prog./90", "prog_carries_p90"),
+                ("Regates/90", "dribbles_cmp_p90"),
+            ]
+            sin_balon = [
+                ("Presiones/90", "pressures_p90"),
+                ("Recuperaciones/90", "recoveries_p90"),
+                ("Entradas/90", "tackles_p90"),
+                ("Intercepciones/90", "interceptions_p90"),
+                ("Entradas+Int. PAdj/90", "padj_tack_int_p90"),
+            ]
 
         def _stat_panel(x: float, w_: float, titulo: str, filas: list[tuple[str, str]]) -> None:
             ax = _panel_ax(fig1, x, 0.065, w_, 0.105)
             _t(ax, 0.05, 0.88, titulo, 6.5, _TEXT, "bold")
+            # paso repartido sobre el mismo rango que ocupan 5 filas a 0.15
+            # (el caso normal de jugadores de campo): con menos filas —
+            # portero, con listas más cortas de métricas reales— una fila
+            # fija de 0.15 dejaba hueco vacío debajo, mismo problema que ya
+            # se arregló en el panel PERFIL.
+            paso = 0.60 / (len(filas) - 1) if len(filas) > 1 else 0.0
             for j, (label, raw_col) in enumerate(filas):
-                y = 0.68 - j * 0.15
+                y = 0.68 - j * paso
                 pct = float(prow.get(f"{raw_col}_pct") or 0.0)
                 _t(ax, 0.05, y, label, 5.2, _MUTED)
                 # la barra deja hueco de sobra (hasta .78, no .88) antes del

@@ -36,7 +36,19 @@ COUNT_METRICS = [
     "recoveries",
     "blocks",
     "clearances",
+    "saves",
+    "goals_conceded",
+    "keeper_sweeper",
+    "collected",
+    "punches",
 ]
+
+# subtipos de evento "Goal Keeper" (columna goalkeeper_type) que cuentan
+# como parada — confirmado contra datos reales cacheados en este repo
+# (data/cache/events_43_106.pkl, Mundial 2022): "Shot Faced" es el evento
+# genérico de cada tiro a puerta que recibe, no una parada en sí.
+_GK_SAVE_TYPES = {"Shot Saved", "Shot Saved to Post", "Shot Saved Off Target", "Penalty Saved"}
+_GK_CONCEDED_TYPES = {"Goal Conceded", "Penalty Conceded"}
 
 
 def position_group(position: str | float) -> str | float:
@@ -170,6 +182,14 @@ def player_metrics(
     flags["blocks"] = ev["type"] == "Block"
     flags["clearances"] = ev["type"] == "Clearance"
 
+    is_gk_event = ev["type"] == "Goal Keeper"
+    gk_type = col("goalkeeper_type")
+    flags["saves"] = is_gk_event & gk_type.isin(_GK_SAVE_TYPES)
+    flags["goals_conceded"] = is_gk_event & gk_type.isin(_GK_CONCEDED_TYPES)
+    flags["keeper_sweeper"] = is_gk_event & (gk_type == "Keeper Sweeper")
+    flags["collected"] = is_gk_event & (gk_type == "Collected")
+    flags["punches"] = is_gk_event & (gk_type == "Punch")
+
     ev = pd.concat([ev, flags.astype(float)], axis=1)
     ev["npxg"] = np.where(is_shot & non_penalty, col("shot_statsbomb_xg").fillna(0.0), 0.0)
 
@@ -195,6 +215,12 @@ def player_metrics(
 
     out["pass_pct"] = np.where(out["passes_att"] > 0, 100 * out["passes_cmp"] / out["passes_att"], np.nan)
     out["npxg_per_shot"] = np.where(out["shots"] > 0, out["npxg"] / out["shots"], np.nan)
+    # % de paradas: paradas / (paradas + goles encajados) — un ratio, no
+    # una cuenta cruda, así que "más alto siempre es mejor" (a diferencia
+    # de "goles encajados/90", donde menos es mejor) y encaja igual que el
+    # resto de métricas en un radar donde más relleno = mejor percentil.
+    gk_shots_on_target = out["saves"] + out["goals_conceded"]
+    out["save_pct"] = np.where(gk_shots_on_target > 0, 100 * out["saves"] / gk_shots_on_target, np.nan)
 
     for m in COUNT_METRICS:
         out[f"{m}_p90"] = np.where(out["minutes"] > 0, out[m] / out["minutes"] * 90, 0.0)

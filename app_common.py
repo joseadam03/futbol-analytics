@@ -106,7 +106,7 @@ def build_table(
     events = load_events(provider_key, competition_id, season_id)
     minutes = load_minutes(provider_key, competition_id, season_id)
     table = metrics.player_metrics(events, minutes, min_minutes=min_minutes)
-    pct_cols = [f"{m}_p90" for m in metrics.COUNT_METRICS] + ["pass_pct", "npxg_per_shot"]
+    pct_cols = [f"{m}_p90" for m in metrics.COUNT_METRICS] + ["pass_pct", "npxg_per_shot", "save_pct"]
     return metrics.percentiles(table, pct_cols, group_col=basis)
 
 

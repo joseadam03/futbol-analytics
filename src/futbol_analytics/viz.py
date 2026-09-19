@@ -105,7 +105,15 @@ RADAR_METRICS = {
         ("xa_p90_pct", "xA"),
     ],
 }
-RADAR_METRICS["GK"] = RADAR_METRICS["DF"]
+RADAR_METRICS["GK"] = [
+    ("saves_p90_pct", "Paradas"),
+    ("save_pct_pct", "% de\nparadas"),
+    ("keeper_sweeper_p90_pct", "Salidas"),
+    ("collected_p90_pct", "Recogidas"),
+    ("punches_p90_pct", "Puños"),
+    ("pass_pct_pct", "% de\npase"),
+    ("prog_passes_p90_pct", "Pases\nprogresivos"),
+]
 
 
 def _header(fig, title: str, subtitle: str) -> None:
