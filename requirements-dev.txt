@@ -300,6 +300,10 @@ tomli==2.4.1 ; python_full_version <= '3.11'
     #   pytest
 typeguard==4.6.0
     # via inflect
+types-pyyaml==6.0.12.20260906
+    # via futbol-analytics
+types-requests==2.33.0.20260906
+    # via futbol-analytics
 typing-extensions==4.16.0
     # via
     #   altair
@@ -323,6 +327,7 @@ urllib3==2.7.0
     # via
     #   requests
     #   requests-cache
+    #   types-requests
 uvicorn==0.52.4
     # via streamlit
 virtualenv==21.7.8

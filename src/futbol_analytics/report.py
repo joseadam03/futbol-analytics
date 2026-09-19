@@ -60,6 +60,10 @@ PAGE_SIZE = (8.27, 11.69)  # A4 vertical, pulgadas
 _FONTS_DIR = Path(__file__).resolve().parent / "assets" / "fonts"
 for _font_path in sorted(_FONTS_DIR.glob("*.ttf")):
     fm.fontManager.addfont(str(_font_path))
+# el stub de matplotlib tipa rc_context() con un Literal enorme de las claves
+# de rcParams conocidas; un dict[str, ...] normal (aunque las claves sean
+# válidas de sobra en tiempo de ejecución) no es subtipo de eso por la
+# invarianza de dict — de ahí el "type: ignore[arg-type]" en las dos llamadas.
 _FONT_CONTEXT = {"font.family": "sans-serif", "font.sans-serif": ["Inter", "DejaVu Sans"]}
 
 # npxG/xA son tasas pequeñas (casi siempre < 1): con un decimal se verían
@@ -542,7 +546,7 @@ def player_report_pdf(
     Rating" inventado: el medidor sigue siendo el percentil medio real,
     igual que antes de esta plantilla.
     """
-    with plt.rc_context(_FONT_CONTEXT):
+    with plt.rc_context(_FONT_CONTEXT):  # type: ignore[arg-type]
         prow = table[table["player"] == player].iloc[0]
         apodo = prow.get("nickname")
         display = display or (apodo if isinstance(apodo, str) and apodo else player)
@@ -861,7 +865,7 @@ def ficha_report_pdf(
     `ficha_sm` pueden venir ambas a None si ningún servicio tuvo datos; el
     PDF se genera igual, dejándolo dicho.
     """
-    with plt.rc_context(_FONT_CONTEXT):
+    with plt.rc_context(_FONT_CONTEXT):  # type: ignore[arg-type]
         candidatos_nombre = [
             n
             for n in ((ficha or {}).get("nombre"), (ficha_sm or {}).get("nombre"), query)

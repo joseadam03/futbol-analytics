@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-cov", "ruff", "pre-commit", "mypy"]
+dev = ["pytest", "pytest-cov", "ruff", "pre-commit", "mypy", "types-requests", "types-PyYAML"]
 
 [tool.ruff]
 line-length = 110
