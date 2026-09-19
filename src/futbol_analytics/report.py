@@ -585,8 +585,13 @@ def player_report_pdf(
 
         # --- Foto hero: retrato, recorte cover-fit exacto a la caja real
         # (no al 900/1200 fijo de la referencia, que no siempre coincide
-        # con el aspect ratio físico de esta caja en concreto) ---
-        photo_x0, photo_y0, photo_w, photo_h = 0.34, 0.52, 0.63, 0.43
+        # con el aspect ratio físico de esta caja en concreto). A la derecha
+        # del panel de perfil, sin solaparlo (la referencia sí los solapa,
+        # pero ahí la foto es una toma editorial con espacio en blanco
+        # pensado para eso; una foto de agencia real como las que da
+        # TheSportsDB no lo tiene, y el panel opaco encima se comía la
+        # mayor parte de la imagen — visto en un informe real).
+        photo_x0, photo_y0, photo_w, photo_h = 0.67, 0.52, 0.275, 0.43
         ax_photo = fig1.add_axes((photo_x0, photo_y0, photo_w, photo_h))
         ax_photo.axis("off")
         photo_img = _photo_box(
@@ -617,12 +622,13 @@ def player_report_pdf(
             _t(ax_info, 0, yy - 0.07, v, 8, _TEXT, "bold")
             yy -= 0.135
 
-        # --- Perfil + puntos fuertes + por mejorar (panel junto a la foto) ---
-        ax_prof = _panel_ax(fig1, 0.55, 0.52, 0.39, 0.30)
+        # --- Perfil + puntos fuertes + por mejorar (panel junto a la foto,
+        # nunca encima: ver comentario de la foto hero) ---
+        ax_prof = _panel_ax(fig1, 0.33, 0.52, 0.32, 0.30)
         _t(ax_prof, 0.06, 0.93, "PERFIL", 7, _ACCENT, "bold")
         n_lineas = 0
         if resumen:
-            lineas = textwrap.wrap(resumen, width=58)
+            lineas = textwrap.wrap(resumen, width=47)
             n_lineas = len(lineas)
             for i, linea in enumerate(lineas):
                 _t(ax_prof, 0.06, 0.83 - i * 0.075, linea, 7, _MUTED)
@@ -636,7 +642,7 @@ def player_report_pdf(
                 _t(ax_prof, 0.115, y, t, 7, _TEXT)
                 y -= 0.05
                 if d:
-                    _t(ax_prof, 0.115, y, _truncate(d, 62), 5.8, _MUTED)
+                    _t(ax_prof, 0.115, y, _truncate(d, 51), 5.8, _MUTED)
                     y -= 0.05
             return y
 
@@ -735,7 +741,16 @@ def player_report_pdf(
         _panel_radar_polar(ax_radar, radar_labels, radar_values)
         _t(ax_radar, 0.5, 1.24, "RADAR", 7, _TEXT, "bold", ha="center")
 
+        # sin aspect fijo, un círculo de 0.30 en coordenadas de datos salía
+        # ovalado (la caja no es cuadrada en pulgadas físicas) y además
+        # autoescalaba casi hasta llenar los ejes, comiéndose el título de
+        # encima — visto en un informe real. xlim/ylim explícitos + aspect
+        # "equal" (adjustable="box", encoge la propia caja al cuadrado que
+        # le cabe, centrada) lo dejan como un círculo real con margen.
         ax_rating = _panel_ax(fig1, 0.74, 0.315, 0.205, 0.18)
+        ax_rating.set_xlim(0, 1)
+        ax_rating.set_ylim(0, 1)
+        ax_rating.set_aspect("equal", adjustable="box")
         _t(ax_rating, 0.08, 0.91, "PERCENTIL MEDIO", 6.5, _TEXT, "bold")
         ax_rating.add_patch(Circle((0.50, 0.50), 0.30, fill=False, lw=5, ec=_GRID))
         theta = np.linspace(0, 2 * np.pi, 100)
@@ -758,13 +773,20 @@ def player_report_pdf(
             ("MAPA DE TIROS", _panel_shot_map(events, player)),
             ("MAPA DE TOQUES", _panel_touch_map(events, player)),
         ]
+        # más grandes que el 0.085 calcado de la referencia: sus mapas son
+        # iconos vectoriales limpios pensados para verse pequeños, los
+        # nuestros llevan datos reales (mapa de calor, dispersión de tiros)
+        # que a ese tamaño se leían mal — "los mapas se ven enanos", visto
+        # en un informe real. El hueco de sobra sale de encoger un poco la
+        # fila de abajo (con balón/sin balón/mejores destinos).
         n = len(mapas)
         x0, gap = 0.055, 0.012
         w = (0.89 - gap * (n - 1)) / n
+        map_h = 0.11
         for i, (label, pf) in enumerate(mapas):
-            ax_m = fig1.add_axes((x0 + i * (w + gap), 0.205, w, 0.085))
+            ax_m = fig1.add_axes((x0 + i * (w + gap), 0.185, w, map_h))
             ax_m.axis("off")
-            _t(ax_m, 0, 1.18, label, 5.2, _TEXT, "bold")
+            _t(ax_m, 0, 1 + 0.0153 / map_h, label, 5.2, _TEXT, "bold")
             ax_m.imshow(mpimg.imread(_panel_png(pf)))
 
         # --- Con balón / Sin balón / Mejores destinos ---
@@ -784,7 +806,7 @@ def player_report_pdf(
         ]
 
         def _stat_panel(x: float, w_: float, titulo: str, filas: list[tuple[str, str]]) -> None:
-            ax = _panel_ax(fig1, x, 0.065, w_, 0.12)
+            ax = _panel_ax(fig1, x, 0.065, w_, 0.105)
             _t(ax, 0.05, 0.88, titulo, 6.5, _TEXT, "bold")
             for j, (label, raw_col) in enumerate(filas):
                 y = 0.68 - j * 0.15
@@ -801,7 +823,7 @@ def player_report_pdf(
         _stat_panel(0.055, 0.28, "CON BALÓN", con_balon)
         _stat_panel(0.345, 0.28, "SIN BALÓN", sin_balon)
 
-        ax_td = _panel_ax(fig1, 0.635, 0.065, 0.31, 0.12)
+        ax_td = _panel_ax(fig1, 0.635, 0.065, 0.31, 0.105)
         _t(ax_td, 0.05, 0.88, "MEJORES DESTINOS", 6.5, _ACCENT, "bold")
         if destinos.empty:
             _t(ax_td, 0.05, 0.6, "sin datos suficientes", 5.6, _MUTED)
