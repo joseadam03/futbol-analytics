@@ -240,7 +240,15 @@ def test_hero_band_incrusta_escudo_si_hay_url(monkeypatch):
     try:
         n_antes = len(fig.axes)
         report._hero_band(
-            fig, "Nombre", "Posición", [("Equipo", "X")], None, "https://img/escudo.png", hero_h=0.27
+            fig,
+            "Nombre",
+            "Posición",
+            [("Equipo", "X")],
+            None,
+            "https://img/escudo.png",
+            hero_h=0.27,
+            photo_x0=0.335,
+            photo_w=0.33,
         )
         assert len(fig.axes) == n_antes + 2  # foto de cabecera + escudo
     finally:
@@ -251,7 +259,17 @@ def test_hero_band_sin_escudo_no_anade_eje_extra():
     fig = plt.figure(figsize=report.PAGE_SIZE)
     try:
         n_antes = len(fig.axes)
-        report._hero_band(fig, "Nombre", "Posición", [("Equipo", "X")], None, None, hero_h=0.27)
+        report._hero_band(
+            fig,
+            "Nombre",
+            "Posición",
+            [("Equipo", "X")],
+            None,
+            None,
+            hero_h=0.27,
+            photo_x0=0.335,
+            photo_w=0.33,
+        )
         assert len(fig.axes) == n_antes + 1  # solo la foto de cabecera (placeholder si no hay URL)
     finally:
         plt.close(fig)
@@ -263,7 +281,15 @@ def test_hero_band_escudo_caido_no_revienta(monkeypatch):
     try:
         n_antes = len(fig.axes)
         report._hero_band(
-            fig, "Nombre", "Posición", [("Equipo", "X")], None, "https://img/caido.png", hero_h=0.27
+            fig,
+            "Nombre",
+            "Posición",
+            [("Equipo", "X")],
+            None,
+            "https://img/caido.png",
+            hero_h=0.27,
+            photo_x0=0.335,
+            photo_w=0.33,
         )
         assert len(fig.axes) == n_antes + 1  # solo la foto (sin escudo, la descarga falló)
     finally:
