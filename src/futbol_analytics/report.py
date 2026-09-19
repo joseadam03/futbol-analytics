@@ -158,7 +158,20 @@ def _photo_box(
     bg = _hex_to_rgb(_PANEL)
     box_ratio = aspect_w / aspect_h
     if img is not None:
-        img = img.convert("RGB")
+        # TheSportsDB sirve el recorte de jugador con fondo transparente
+        # (RGBA). Image.convert("RGB") directo NO compone sobre nada: los
+        # píxeles transparentes se quedan con el RGB que tuvieran debajo del
+        # canal alfa, que en la práctica suele ser negro puro — un halo negro
+        # rectangular alrededor del recorte en vez de fundirse con el fondo
+        # oscuro del informe (visto en un informe real). Componer primero
+        # sobre `bg` antes de aplanar a RGB es lo que faltaba.
+        if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
+            img = img.convert("RGBA")
+            canvas = Image.new("RGB", img.size, bg)
+            canvas.paste(img, mask=img.split()[-1])
+            img = canvas
+        else:
+            img = img.convert("RGB")
         src_ratio = img.width / img.height
         if src_ratio > box_ratio:
             new_w = int(img.height * box_ratio)

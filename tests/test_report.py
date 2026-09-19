@@ -16,6 +16,17 @@ def _png_bytes() -> bytes:
     return buf.getvalue()
 
 
+def test_photo_box_compone_recorte_transparente_sobre_el_panel_no_negro():
+    # TheSportsDB sirve las fotos de jugador como recorte RGBA (fondo
+    # transparente). Sin componer primero sobre el panel, Image.convert
+    # ("RGB") deja los píxeles transparentes en negro puro: un halo
+    # rectangular negro alrededor del recorte, visto en un informe real.
+    transparente = Image.new("RGBA", (20, 20), (0, 0, 0, 0))
+    resultado = report._photo_box(transparente, aspect_w=1.0, aspect_h=1.0, fade_frac=0.0)
+    esquina = resultado.getpixel((0, 0))
+    assert esquina == report._hex_to_rgb(report._PANEL)
+
+
 def eventos() -> pd.DataFrame:
     def ev(team, player, type_, x=60.0, end=None, **kw):
         base = {
