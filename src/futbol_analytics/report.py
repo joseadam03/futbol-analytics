@@ -728,67 +728,45 @@ def player_report_pdf(
 
         # --- Perfil + puntos fuertes + por mejorar (a la derecha de la
         # foto, nunca encima: ver comentario de la foto hero) ---
-        # altura del panel ajustada al contenido real, no fija: con un
-        # resumen corto y pocas fortalezas/debilidades (frecuente — no todos
-        # los jugadores tienen 2+2), la caja de 0.30 fijada al peor caso
-        # dejaba un hueco vacío enorme debajo del texto, muy visible al ser
-        # un panel con fondo propio — "se ve mal, hace tan bajo", visto en
-        # un informe real. Las constantes de abajo (*_D/STEP, en fracción
-        # de figura) son las mismas separaciones ya verificadas que antes
-        # iban en fracción del eje a una altura fija de 0.30 — aquí se
-        # despejan en fracción de figura para poder resolver la altura
-        # antes de crear el eje, y luego se reconvierten a fracción del eje
-        # ya resuelto (de ahí dividir por `h`).
-        lineas = textwrap.wrap(resumen, width=35) if resumen else []
-        n_lineas = len(lineas)
-        fortalezas_2 = fortalezas[:2]
-        debilidades_2 = debilidades[:2]
-
-        def _lineas_rasgos(rasgos: list[tuple[str, str]]) -> int:
-            return sum(2 if d else 1 for _, d in rasgos)
-
-        TITLE_D, RESUMEN_START_D, RESUMEN_STEP = 0.021, 0.051, 0.0225
-        GAP_AFTER_RESUMEN, RASGOS_TITLE_GAP, RASGOS_STEP = 0.018, 0.0255, 0.015
-        GAP_BETWEEN_RASGOS, BOTTOM_MARGIN = 0.003, 0.02
-
-        profundidad_fortalezas = RASGOS_TITLE_GAP + _lineas_rasgos(fortalezas_2) * RASGOS_STEP
-        profundidad_debilidades = RASGOS_TITLE_GAP + _lineas_rasgos(debilidades_2) * RASGOS_STEP
-        contenido = (
-            RESUMEN_START_D
-            + n_lineas * RESUMEN_STEP
-            + GAP_AFTER_RESUMEN
-            + profundidad_fortalezas
-            + GAP_BETWEEN_RASGOS
-            + profundidad_debilidades
-            + BOTTOM_MARGIN
-        )
-        h_prof = min(max(contenido, 0.16), 0.30)
-        perfil_top = 0.82
-        ax_prof = _panel_ax(fig1, 0.705, perfil_top - h_prof, 0.24, h_prof)
-
-        def _d(offset: float) -> float:
-            """Distancia absoluta desde arriba del panel -> y relativo al eje."""
-            return 1 - offset / h_prof
-
-        _t(ax_prof, 0.06, _d(TITLE_D), "PERFIL", 7, _ACCENT, "bold")
-        for i, linea in enumerate(lineas):
-            _t(ax_prof, 0.06, _d(RESUMEN_START_D + i * RESUMEN_STEP), linea, 7, _MUTED)
-        yy = _d(RESUMEN_START_D + n_lineas * RESUMEN_STEP + GAP_AFTER_RESUMEN)
+        # sin panel con fondo propio: en la referencia este bloque es texto
+        # suelto directamente sobre el fondo de la página, sin ninguna caja
+        # ni borde alrededor (comprobado a pixel contra la imagen de
+        # referencia que compartió Jose) — por eso ahí un resumen corto no
+        # "se ve mal" aunque deje mucho hueco debajo: no hay ningún
+        # rectángulo cuyo borde inferior se note. Poner aquí un fondo de
+        # panel fue el verdadero error, no la altura: una caja de fondo
+        # fijo delataba tanto el hueco vacío (contenido corto) como, al
+        # intentar arreglarlo encogiendo la caja al contenido, el desajuste
+        # con la foto (que sigue bajando más que el panel). Con fondo
+        # transparente y la misma caja fija que la foto (mismo borde
+        # inferior en 0.52, igual que en la referencia), ambos problemas
+        # desaparecen a la vez.
+        ax_prof = fig1.add_axes((0.705, 0.52, 0.24, 0.30))
+        ax_prof.set_facecolor("none")
+        ax_prof.axis("off")
+        _t(ax_prof, 0.06, 0.93, "PERFIL", 7, _ACCENT, "bold")
+        n_lineas = 0
+        if resumen:
+            lineas = textwrap.wrap(resumen, width=35)
+            n_lineas = len(lineas)
+            for i, linea in enumerate(lineas):
+                _t(ax_prof, 0.06, 0.83 - i * 0.075, linea, 7, _MUTED)
+        yy = 0.83 - n_lineas * 0.075 - 0.06
 
         def _rasgos(titulo: str, y_start: float, signo: str, rasgos: list[tuple[str, str]]) -> float:
             _t(ax_prof, 0.06, y_start, titulo, 7, _ACCENT, "bold")
-            y = y_start - RASGOS_TITLE_GAP / h_prof
-            for t, d in rasgos:
+            y = y_start - 0.085
+            for t, d in rasgos[:2]:
                 _t(ax_prof, 0.06, y, signo, 9, _ACCENT, "bold")
                 _t(ax_prof, 0.115, y, t, 7, _TEXT)
-                y -= RASGOS_STEP / h_prof
+                y -= 0.05
                 if d:
                     _t(ax_prof, 0.115, y, _truncate(d, 38), 5.8, _MUTED)
-                    y -= RASGOS_STEP / h_prof
+                    y -= 0.05
             return y
 
-        yy = _rasgos("PUNTOS FUERTES", yy, "+", fortalezas_2)
-        _rasgos("POR MEJORAR", yy - GAP_BETWEEN_RASGOS / h_prof, "–", debilidades_2)
+        yy = _rasgos("PUNTOS FUERTES", yy, "+", fortalezas)
+        _rasgos("POR MEJORAR", yy - 0.01, "–", debilidades)
 
         # --- Datos clave / Radar / Percentil medio: fila de tres columnas ---
         key_metrics = viz.RADAR_METRICS.get(group, viz.RADAR_METRICS["MF"])[:6]
