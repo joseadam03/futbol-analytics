@@ -271,6 +271,32 @@ def _t(
     ax.text(x, y, s, fontsize=size, color=color, weight=weight, ha=ha, va=va, transform=ax.transAxes)
 
 
+def _fit_name_lines(
+    fig, ax, display: str, max_width_frac: float, max_size: float = 46, min_size: float = 20
+) -> tuple[list[str], float]:
+    """Nombre en mayúsculas, en 1-2 líneas (primera palabra / resto, como
+    en la referencia), con el tamaño de letra más grande que quepa en
+    `max_width_frac` del ancho de `ax` — medido con el renderer real
+    (misma técnica que el resto del informe), no a ojo: un apellido largo
+    no puede desbordar sobre la foto."""
+    palabras = display.upper().split()
+    lineas = [palabras[0], " ".join(palabras[1:])] if len(palabras) > 1 else [palabras[0]]
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    ax_w_px = ax.get_window_extent(renderer=renderer).width
+    size = max_size
+    while size > min_size:
+        ancho_px = 0.0
+        for linea in lineas:
+            txt = ax.text(0, 0, linea, fontsize=size, weight="bold", transform=ax.transAxes)
+            ancho_px = max(ancho_px, txt.get_window_extent(renderer=renderer).width)
+            txt.remove()
+        if ancho_px / ax_w_px <= max_width_frac:
+            break
+        size -= 2
+    return lineas, size
+
+
 def _icono_info(ax, x: float, y: float, tipo: str, color: str, y_scale: float) -> None:
     """Icono lineal diminuto junto a cada fila de la columna de datos —
     mismo lenguaje visual que la referencia (un icono por dato: equipo,
@@ -467,6 +493,23 @@ def _panel_heatmap(events: pd.DataFrame, player: str):
         stats = pitch.bin_statistic(x, y, statistic="count", bins=(30, 20))
         stats["statistic"] = gaussian_filter(stats["statistic"], 1.5)
         pitch.heatmap(stats, ax=ax, cmap="turbo", edgecolors="none", zorder=0, alpha=0.85)
+    return fig
+
+
+def _panel_position_pitch(events: pd.DataFrame, player: str):
+    """Punto de "dónde juega": centroide real de sus toques (mismo criterio
+    de _panel_heatmap), no una zona puesta a ojo. Se dibuja con `scatter`
+    (marcador circular en puntos de pantalla) y no con un `Circle` en
+    coordenadas de datos, precisamente para no arrastrar la distorución de
+    aspect ratio que sí hay que corregir a mano en _icono_info."""
+    ev = _report_player_events(events, player)
+    touches = ev[ev["type"].isin(["Pass", "Shot", "Carry", "Dribble", "Ball Receipt*"])]
+    pitch, fig, ax = _mini_pitch(figsize=(2.3, 1.55))
+    if len(touches) >= 1:
+        cx = touches["location"].str[0].astype(float).mean()
+        cy = touches["location"].str[1].astype(float).mean()
+        for size, alpha in ((950, 0.12), (480, 0.25), (150, 0.95)):
+            ax.scatter([cx], [cy], s=size, color=_ACCENT, alpha=alpha, zorder=3, linewidths=0)
     return fig
 
 
@@ -685,18 +728,33 @@ def player_report_pdf(
             photo_img = _photo_box(photo_src, photo_w * PAGE_SIZE[0], photo_h * PAGE_SIZE[1], fade_frac=0.0)
             ax_photo.imshow(photo_img, interpolation="lanczos")
 
-        # --- Cabecera: nombre + posición ---
-        ax_h = fig1.add_axes((0.055, 0.89, 0.9, 0.07))
+        # --- Cabecera: nombre (1-2 líneas en mayúsculas, "JOSÉ" / "ADAM"
+        # apiladas como en la referencia, no una sola línea) + posición.
+        # Caja más alta que antes (0.175 vs. 0.07) para tener sitio: el
+        # nombre grande de la referencia ocupa de verdad ~1/6 de la altura
+        # de la página, comprobado con las coordenadas de píxel reales de
+        # la imagen que compartió Jose, no a ojo.
+        ax_h = fig1.add_axes((0.055, 0.79, 0.9, 0.175))
         ax_h.axis("off")
-        _t(ax_h, 0, 0.80, "INFORME DE JUGADOR", 7, _MUTED, "bold")
-        _t(ax_h, 0, 0.05, _truncate(display, 20), 30, _TEXT, "bold")
-        # clip_on=False: a diferencia de _t() (texto, sin recorte por
-        # defecto), un patch normal SÍ se recorta al propio eje — sin esto
-        # la barrita, fuera del rango [0,1] de este eje, no se veía.
-        ax_h.add_patch(
-            Rectangle((0, -0.48), 0.006, 0.12, transform=ax_h.transAxes, color=_ACCENT, lw=0, clip_on=False)
-        )
-        _t(ax_h, 0.018, -0.42, posicion.upper(), 10, _ACCENT, "bold")
+        _t(ax_h, 0, 0.94, "INFORME DE JUGADOR", 7, _MUTED, "bold")
+        # ancho disponible antes de la foto (fracción del propio ax_h, que
+        # ocupa 0.9 de la página) — un apellido largo no puede invadirla.
+        nombre_max_frac = (photo_x0 - 0.02 - 0.055) / 0.9
+        lineas_nombre, size_nombre = _fit_name_lines(fig1, ax_h, display, nombre_max_frac)
+        if len(lineas_nombre) > 1:
+            _t(ax_h, 0, 0.68, lineas_nombre[0], size_nombre, _TEXT, "bold")
+            _t(ax_h, 0, 0.26, lineas_nombre[1], size_nombre, _TEXT, "bold")
+        else:
+            _t(ax_h, 0, 0.47, lineas_nombre[0], size_nombre, _TEXT, "bold")
+        ax_h.add_patch(Rectangle((0, 0.05), 0.006, 0.05, transform=ax_h.transAxes, color=_ACCENT, lw=0))
+        _t(ax_h, 0.018, 0.075, posicion.upper(), 10, _ACCENT, "bold")
+
+        # --- "Dónde juega": mini-campo con un punto en su posición media
+        # real (centroide de sus toques, no una zona puesta a ojo), arriba
+        # a la derecha de la cabecera — pedido explícito de Jose.
+        ax_pos = fig1.add_axes((photo_x0 + photo_w, 0.832, 0.272, 0.1385))
+        ax_pos.axis("off")
+        ax_pos.imshow(mpimg.imread(_panel_png(_panel_position_pitch(events, player))))
 
         # --- Columna de datos (izquierda, bajo la cabecera): un icono por
         # fila, mismo lenguaje visual que la referencia. Siempre son 4
@@ -708,7 +766,7 @@ def player_report_pdf(
         # un informe real. El techo (arriba del todo) se mantiene fijo,
         # justo bajo la posición; se encoge por abajo.
         info_h = 0.24
-        ax_info = fig1.add_axes((0.055, 0.86 - info_h, 0.25, info_h))
+        ax_info = fig1.add_axes((0.055, 0.77 - info_h, 0.25, info_h))
         ax_info.axis("off")
         info_rows = [
             ("equipo", "EQUIPO", _truncate(str(prow["team"]), 20)),
@@ -721,7 +779,7 @@ def player_report_pdf(
         info_y_scale = (0.25 * PAGE_SIZE[0]) / (info_h * PAGE_SIZE[1])
         yy = 0.83
         for icono, k, v in info_rows:
-            _icono_info(ax_info, 0.025, yy - 0.028, icono, _ACCENT, info_y_scale)
+            _icono_info(ax_info, 0.025, yy - 0.028, icono, _MUTED, info_y_scale)
             _t(ax_info, 0.075, yy, k, 5.5, _MUTED, "bold")
             _t(ax_info, 0.075, yy - 0.099, v, 8, _TEXT, "bold")
             yy -= 0.191
