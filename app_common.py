@@ -199,33 +199,31 @@ def informe_pdf(
     comp_label: str,
     basis: str = "position_group",
 ) -> bytes:
-    """Informe-CV en PDF del jugador (siempre en tema oscuro, con foto de retrato)."""
+    """Informe-CV en PDF del jugador (siempre con la paleta oscura propia del informe, con foto de retrato).
+
+    A diferencia de los gráficos de la app, report.py ya no toca el tema de
+    viz.py (tiene su propia paleta fija) — nada que restaurar aquí después.
+    """
     table = build_table(provider_key, competition_id, season_id, min_minutes, basis)
     events = load_events(provider_key, competition_id, season_id)
     prow = table[table["player"] == player].iloc[0]
     apodo = prow.get("nickname")
     display = apodo if isinstance(apodo, str) and apodo else player
-    try:
-        return report.player_report_pdf(
-            table,
-            events,
-            player,
-            comp_label,
-            photo_url=photo_of(display),
-            crest_url=crest_of(str(prow["team"])),
-        )
-    finally:
-        viz.use_theme(theme())  # el informe fuerza tema oscuro; restaurar el de la app
+    return report.player_report_pdf(
+        table,
+        events,
+        player,
+        comp_label,
+        photo_url=photo_of(display),
+        crest_url=crest_of(str(prow["team"])),
+    )
 
 
 @st.cache_data(show_spinner=False)
 def ficha_informe_pdf(ficha: dict | None, ficha_sm: dict | None, query: str) -> bytes:
     """Informe-CV ligero (bio + estadísticas de temporada) para un jugador fuera de los open data."""
     equipo = (ficha or {}).get("equipo")
-    try:
-        return report.ficha_report_pdf(ficha, ficha_sm, query, crest_url=crest_of(equipo) if equipo else None)
-    finally:
-        viz.use_theme(theme())  # el informe fuerza tema oscuro; restaurar el de la app
+    return report.ficha_report_pdf(ficha, ficha_sm, query, crest_url=crest_of(equipo) if equipo else None)
 
 
 def cached_competitions(provider_key: str) -> pd.DataFrame:

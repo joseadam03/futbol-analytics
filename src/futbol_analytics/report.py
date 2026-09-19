@@ -1,15 +1,23 @@
 """Informe-CV del jugador: foto de cabecera, radar, mapas reales, similares y destinos.
 
-Plantilla oscura (tema `dark` de viz.py) con foto de retrato, tipografía
-Inter (SIL OFL, empaquetada en assets/fonts/) y paneles de mapas reales
-generados con matplotlib + mplsoccer — nunca imágenes simuladas. El azul de
-acento es el mismo de todo el resto de la app (viz.BLUE), no el verde de
-la referencia visual que dio origen al diseño — así el informe no rompe la
-identidad de color validada (accesibilidad/daltonismo) del resto de la app.
+Plantilla oscura con foto de retrato, tipografía Inter (SIL OFL, empaquetada
+en assets/fonts/) y paneles de mapas reales generados con matplotlib +
+mplsoccer — nunca imágenes simuladas. La paleta (`_BG`/`_PANEL`/`_GRID`/
+`_TEXT`/`_MUTED`/`_ACCENT`/`_RED`) y las coordenadas de cada sección están
+calcadas de una referencia real que Jose pidió replicar — es deliberadamente
+propia de este informe, no la de `viz.py` (que sigue siendo azul/naranja en
+el resto de la app): este documento es un CV editorial para imprimir o
+adjuntar, no una pantalla más de la app.
+
 Todo el texto explicativo viene de narrative.py (reglas deterministas sobre
 datos ya calculados), nunca inventado; el "percentil medio" del medidor es
-la media real de los mismos percentiles que dibuja el radar, no una
-puntuación arbitraria.
+la media real de los mismos percentiles que dibuja el radar, no un "Overall
+Rating" inventado como el de la referencia. Tampoco lleva edad, altura, pie
+preferido ni nacionalidad — no existen en StatsBomb open data (ver
+CLAUDE.md) — ni las etiquetas cualitativas de "Tactical Profile" de la
+referencia, que no son verificables a partir de los eventos; en su lugar,
+el panel equivalente enseña un adelanto real de "Mejores destinos" (motor
+de encaje), que la página 2 completa.
 
 player_report_pdf genera dos páginas A4 verticales: la 1ª es la ficha visual
 (foto, perfil, puntos fuertes/por mejorar, datos clave, radar+medidor,
@@ -36,8 +44,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.backends.backend_pdf import PdfPages
-from matplotlib.lines import Line2D
-from matplotlib.patches import FancyBboxPatch, Rectangle, Wedge
+from matplotlib.patches import Circle, FancyBboxPatch, Rectangle
 from mplsoccer import Pitch, VerticalPitch
 from PIL import Image
 from scipy.ndimage import gaussian_filter
@@ -59,6 +66,18 @@ _FONT_CONTEXT = {"font.family": "sans-serif", "font.sans-serif": ["Inter", "Deja
 # como "0.0" para casi cualquier jugador. El resto de métricas per-90 del
 # radar son recuentos (pases, presiones...) donde un decimal ya distingue.
 _TWO_DECIMAL_METRICS = {"npxg_p90", "xa_p90"}
+
+# Paleta propia del informe (no la de viz.py): esta plantilla es un
+# documento editorial aparte para imprimir/adjuntar, con una identidad
+# visual concreta que Jose pidió replicar de una referencia real —
+# distinta a propósito del azul/naranja del resto de la app.
+_BG = "#071012"
+_PANEL = "#0C1719"
+_GRID = "#243337"
+_TEXT = "#E9F0EF"
+_MUTED = "#8FA3A4"
+_ACCENT = "#37E58C"
+_RED = "#FF655D"
 
 
 def _fmt_metric_value(prow: pd.Series, raw_col: str) -> str:
@@ -132,7 +151,7 @@ def _photo_box(
     Sin foto, un informe sigue siendo válido: rectángulo plano del color de
     panel en vez de un hueco vacío que desentone del resto de la cabecera.
     """
-    bg = _hex_to_rgb(viz.PANEL)
+    bg = _hex_to_rgb(_PANEL)
     box_ratio = aspect_w / aspect_h
     if img is not None:
         img = img.convert("RGB")
@@ -143,7 +162,7 @@ def _photo_box(
             img = img.crop((x0, 0, x0 + new_w, img.height))
         else:
             new_h = int(img.width / box_ratio)
-            margen_superior = min(int(img.height * 0.08), img.height - new_h)
+            margen_superior = min(int(img.height * 0.02), img.height - new_h)
             img = img.crop((0, margen_superior, img.width, margen_superior + new_h))
     else:
         fallback_w = 1000
@@ -194,10 +213,62 @@ def _embed_image(
 
 def _section_title(fig, x: float, y: float, text: str, width: float = 0.88) -> None:
     """Título de sección: versalitas pequeñas + línea divisoria fina."""
-    fig.text(x, y, text.upper(), fontsize=8, fontweight="bold", color=viz.MUTED, va="top")
+    fig.text(x, y, text.upper(), fontsize=8, fontweight="bold", color=_MUTED, va="top")
     fig.add_artist(
-        plt.Line2D([x, x + width], [y - 0.006, y - 0.006], transform=fig.transFigure, color=viz.GRID, lw=0.8)
+        plt.Line2D([x, x + width], [y - 0.006, y - 0.006], transform=fig.transFigure, color=_GRID, lw=0.8)
     )
+
+
+def _t(
+    ax,
+    x: float,
+    y: float,
+    s: str,
+    size: float = 9,
+    color: str = _TEXT,
+    weight: str = "normal",
+    ha: str = "left",
+    va: str = "center",
+) -> None:
+    """Texto en coordenadas relativas (0-1) del propio `ax` — igual que la
+    plantilla de referencia (texto sin recortar: puede salirse de su axes
+    hacia arriba/abajo, que es justo lo que usa la referencia para separar
+    título/subtítulo sin crear un axes por línea)."""
+    ax.text(x, y, s, fontsize=size, color=color, weight=weight, ha=ha, va=va, transform=ax.transAxes)
+
+
+def _panel_ax(fig, x: float, y: float, w: float, h: float):
+    """Panel plano (sin borde ni esquinas redondeadas) — mismo patrón que
+    `add_panel` de la referencia: un axes normal con su color de fondo,
+    ejes ocultos, usado como lienzo para texto/formas en vez de un gráfico."""
+    ax = fig.add_axes((x, y, w, h))
+    ax.set_facecolor(_PANEL)
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    return ax
+
+
+def _panel_radar_polar(ax, labels: list[str], values: list[float]) -> None:
+    """Radar en matplotlib polar puro (no mplsoccer.Radar) — mismo estilo
+    visual que la referencia, alimentado con percentiles reales."""
+    n = len(labels)
+    angles = np.linspace(0, 2 * np.pi, n, endpoint=False).tolist()
+    angles_closed = angles + angles[:1]
+    values_closed = values + values[:1]
+    ax.set_facecolor(_PANEL)
+    ax.set_theta_offset(np.pi / 2)
+    ax.set_theta_direction(-1)
+    ax.set_ylim(0, 100)
+    ax.set_yticks([20, 40, 60, 80, 100])
+    ax.set_yticklabels([])
+    ax.set_xticks(angles)
+    ax.set_xticklabels(labels, fontsize=5.5, color=_MUTED)
+    ax.grid(color=_GRID, lw=0.6)
+    ax.plot(angles_closed, values_closed, color=_ACCENT, lw=1.7)
+    ax.fill(angles_closed, values_closed, color=_ACCENT, alpha=0.16)
+    ax.spines["polar"].set_color(_GRID)
 
 
 def _hero_band(
@@ -218,10 +289,14 @@ def _hero_band(
     Devuelve la y donde puede empezar el resto de la página (justo bajo el
     borde inferior de la foto).
     """
+    # margen superior de página (0.02) igual que el resto del informe:
+    # sin él, la foto tocaba el borde físico de la hoja — la coronilla
+    # quedaba literalmente en el canto, visto en un informe real.
+    top_margin = 0.02
     photo_img = _photo_box(
         _fetch_image(photo_url), photo_w * PAGE_SIZE[0], hero_h * PAGE_SIZE[1], fade_frac=0.22
     )
-    ax_photo = fig.add_axes((photo_x0, 1 - hero_h, photo_w, hero_h))
+    ax_photo = fig.add_axes((photo_x0, 1 - top_margin - hero_h, photo_w, hero_h))
     ax_photo.imshow(photo_img, interpolation="lanczos")
     ax_photo.axis("off")
 
@@ -236,18 +311,18 @@ def _hero_band(
         "INFORME DE JUGADOR · FUTBOL-ANALYTICS",
         fontsize=7,
         fontweight="bold",
-        color=viz.BLUE,
+        color=_ACCENT,
         va="top",
     )
     cursor = top - 0.038
-    fig.text(0.05, cursor, _truncate(name, 17), fontsize=27, fontweight="bold", color=viz.INK, va="top")
+    fig.text(0.05, cursor, _truncate(name, 17), fontsize=27, fontweight="bold", color=_TEXT, va="top")
     cursor -= 0.05
     if subtitle:
         fig.add_artist(
-            Rectangle((0.055, cursor), 0.007, 0.013, transform=fig.transFigure, color=viz.BLUE, lw=0)
+            Rectangle((0.055, cursor), 0.007, 0.013, transform=fig.transFigure, color=_ACCENT, lw=0)
         )
         fig.text(
-            0.068, cursor - 0.002, subtitle.upper(), fontsize=8.5, fontweight="bold", color=viz.INK, va="top"
+            0.068, cursor - 0.002, subtitle.upper(), fontsize=8.5, fontweight="bold", color=_TEXT, va="top"
         )
         cursor -= 0.045
 
@@ -263,23 +338,25 @@ def _hero_band(
 
     for i, (label, value) in enumerate(info_items):
         y = info_y - i * row_h
-        fig.text(0.055, y, label.upper(), fontsize=6.5, fontweight="bold", color=viz.MUTED, va="top")
+        fig.text(0.055, y, label.upper(), fontsize=6.5, fontweight="bold", color=_MUTED, va="top")
         text_x = 0.055 + crest_size + 0.012 if (i == 0 and crest_drawn) else 0.055
         fig.text(
-            text_x, y - 0.017, _truncate(value, 18), fontsize=10, fontweight="bold", color=viz.INK, va="top"
+            text_x, y - 0.017, _truncate(value, 18), fontsize=10, fontweight="bold", color=_TEXT, va="top"
         )
 
     # lo que se devuelve es seguro para el resto de la página tanto si la
     # lista de datos acaba más abajo que la foto (banda baja, varios ítems)
     # como al revés (banda alta): manda el que sobresalga más.
     info_bottom = info_y - len(info_items) * row_h
-    return min(1 - hero_h, info_bottom) - 0.03
+    return min(1 - top_margin - hero_h, info_bottom) - 0.03
 
 
 def _mini_pitch(figsize: tuple[float, float] = (3.5, 2.5)):
-    pitch = Pitch(pitch_type="statsbomb", pitch_color=viz.PANEL, line_color=viz.BASELINE, linewidth=1)
+    # fondo _BG, no _PANEL: en la referencia los mapas van directos sobre
+    # el fondo de página, sin tarjeta propia alrededor.
+    pitch = Pitch(pitch_type="statsbomb", pitch_color=_BG, line_color=_GRID, linewidth=1)
     fig, ax = pitch.draw(figsize=figsize)
-    fig.set_facecolor(viz.PANEL)
+    fig.set_facecolor(_BG)
     return pitch, fig, ax
 
 
@@ -297,7 +374,7 @@ def _panel_heatmap(events: pd.DataFrame, player: str):
     if len(x) >= 2:
         stats = pitch.bin_statistic(x, y, statistic="count", bins=(30, 20))
         stats["statistic"] = gaussian_filter(stats["statistic"], 1.5)
-        pitch.heatmap(stats, ax=ax, cmap=viz.SEQ_BLUE, edgecolors="none", zorder=0)
+        pitch.heatmap(stats, ax=ax, cmap="turbo", edgecolors="none", zorder=0, alpha=0.85)
     return fig
 
 
@@ -315,7 +392,7 @@ def _panel_passing_map(events: pd.DataFrame, player: str):
     others = passes[~key_mask]
 
     pitch, fig, ax = _mini_pitch()
-    for df, color, alpha, lw, z in ((others, viz.MUTED, 0.35, 1.2, 1), (key, viz.ORANGE, 0.85, 2.2, 2)):
+    for df, color, alpha, lw, z in ((others, _MUTED, 0.35, 1.2, 1), (key, _ACCENT, 0.85, 2.2, 2)):
         if df.empty:
             continue
         pitch.lines(
@@ -330,11 +407,6 @@ def _panel_passing_map(events: pd.DataFrame, player: str):
             ax=ax,
             zorder=z,
         )
-    handles = [
-        Line2D([], [], color=viz.ORANGE, lw=2.5, label=f"Clave/asistencia ({len(key)})"),
-        Line2D([], [], color=viz.MUTED, lw=2.5, label=f"Resto ({len(others)})"),
-    ]
-    ax.legend(handles=handles, loc="lower left", fontsize=6, frameon=False, labelcolor=viz.INK_2)
     return fig
 
 
@@ -362,8 +434,8 @@ def _panel_progressive_map(events: pd.DataFrame, player: str):
 
     pitch, fig, ax = _mini_pitch()
     for df, col_end, color, alpha in (
-        (prog_passes, "pass_end_location", viz.BLUE, 0.6),
-        (prog_carries, "carry_end_location", viz.ORANGE, 0.75),
+        (prog_passes, "pass_end_location", _ACCENT, 0.6),
+        (prog_carries, "carry_end_location", _ACCENT, 0.75),
     ):
         if df.empty:
             continue
@@ -379,11 +451,6 @@ def _panel_progressive_map(events: pd.DataFrame, player: str):
             ax=ax,
             zorder=2,
         )
-    handles = [
-        Line2D([], [], color=viz.BLUE, lw=2.5, label=f"Pases prog. ({len(prog_passes)})"),
-        Line2D([], [], color=viz.ORANGE, lw=2.5, label=f"Conducciones prog. ({len(prog_carries)})"),
-    ]
-    ax.legend(handles=handles, loc="lower left", fontsize=6, frameon=False, labelcolor=viz.INK_2)
     return fig
 
 
@@ -398,25 +465,19 @@ def _panel_defensive_map(events: pd.DataFrame, player: str):
         ev["duel_type"] == "Tackle" if "duel_type" in ev.columns else pd.Series(False, index=ev.index)
     )
     kinds = [
-        ("Presión", ev["type"] == "Pressure", viz.BLUE),
-        ("Entrada", duel_tackle, viz.ORANGE),
-        ("Intercepción", ev["type"] == "Interception", viz.AQUA),
-        ("Bloqueo/despeje", ev["type"].isin(["Block", "Clearance"]), viz.MUTED),
+        ("Presión", ev["type"] == "Pressure", _ACCENT),
+        ("Entrada", duel_tackle, _ACCENT),
+        ("Intercepción", ev["type"] == "Interception", _ACCENT),
+        ("Bloqueo/despeje", ev["type"].isin(["Block", "Clearance"]), _MUTED),
     ]
     pitch, fig, ax = _mini_pitch()
-    handles = []
-    for label, mask, color in kinds:
+    for _label, mask, color in kinds:
         sub = ev[mask.fillna(False)]
         if sub.empty:
             continue
         x = sub["location"].str[0].astype(float)
         y = sub["location"].str[1].astype(float)
-        pitch.scatter(x, y, s=45, ax=ax, facecolor=color, edgecolor=viz.PANEL, linewidth=0.6, zorder=2)
-        handles.append(
-            Line2D([], [], marker="o", ls="", mfc=color, mec="none", ms=7, label=f"{label} ({len(sub)})")
-        )
-    if handles:
-        ax.legend(handles=handles, loc="lower left", fontsize=6, frameon=False, labelcolor=viz.INK_2)
+        pitch.scatter(x, y, s=45, ax=ax, facecolor=color, edgecolor=_BG, linewidth=0.6, zorder=2)
     return fig
 
 
@@ -430,7 +491,7 @@ def _panel_touch_map(events: pd.DataFrame, player: str):
     y = touches["location"].str[1].astype(float)
     pitch, fig, ax = _mini_pitch()
     if len(x):
-        pitch.scatter(x, y, s=10, ax=ax, facecolor=viz.BLUE, edgecolor="none", alpha=0.55, zorder=2)
+        pitch.scatter(x, y, s=10, ax=ax, facecolor=_ACCENT, edgecolor="none", alpha=0.55, zorder=2)
     return fig
 
 
@@ -440,11 +501,9 @@ def _panel_shot_map(events: pd.DataFrame, player: str):
     goals = shots[shots["shot_outcome"] == "Goal"]
     misses = shots[shots["shot_outcome"] != "Goal"]
 
-    pitch = VerticalPitch(
-        pitch_type="statsbomb", half=True, pitch_color=viz.PANEL, line_color=viz.BASELINE, linewidth=1
-    )
+    pitch = VerticalPitch(pitch_type="statsbomb", half=True, pitch_color=_BG, line_color=_GRID, linewidth=1)
     fig, ax = pitch.draw(figsize=(3.1, 2.5))
-    fig.set_facecolor(viz.PANEL)
+    fig.set_facecolor(_BG)
 
     def _plot(df, **kw):
         if df.empty:
@@ -458,14 +517,9 @@ def _panel_shot_map(events: pd.DataFrame, player: str):
             **kw,
         )
 
-    _plot(misses, facecolor="none", edgecolor=viz.MUTED, linewidth=1.1)
-    _plot(goals, facecolor=viz.BLUE, edgecolor=viz.PANEL, linewidth=1, alpha=0.9)
-
-    handles = [
-        Line2D([], [], marker="o", ls="", mfc=viz.BLUE, mec=viz.PANEL, ms=7, label=f"Gol ({len(goals)})"),
-        Line2D([], [], marker="o", ls="", mfc="none", mec=viz.MUTED, ms=7, label=f"Sin gol ({len(misses)})"),
-    ]
-    ax.legend(handles=handles, loc="lower left", fontsize=6, frameon=False, labelcolor=viz.INK_2)
+    # mismo criterio que la referencia: gol en rojo, el resto en un tono neutro
+    _plot(misses, facecolor=_TEXT, edgecolor="none", alpha=0.4)
+    _plot(goals, facecolor=_RED, edgecolor=_BG, linewidth=1, alpha=0.95)
     return fig
 
 
@@ -478,8 +532,16 @@ def player_report_pdf(
     photo_url: str | None = None,
     crest_url: str | None = None,
 ) -> bytes:
-    """PDF de dos páginas con el informe completo del jugador."""
-    viz.use_theme("dark")
+    """PDF de dos páginas con el informe completo del jugador.
+
+    Cabecera, tres columnas de datos y fila de mapas en coordenadas
+    calcadas de una referencia real (posiciones exactas), con la paleta
+    de esa misma referencia — pero solo con datos reales ya calculados en
+    metrics.py/narrative.py/fit.py. Sin edad/altura/pie preferido/
+    nacionalidad (no existen en StatsBomb open data) ni un "Overall
+    Rating" inventado: el medidor sigue siendo el percentil medio real,
+    igual que antes de esta plantilla.
+    """
     with plt.rc_context(_FONT_CONTEXT):
         prow = table[table["player"] == player].iloc[0]
         apodo = prow.get("nickname")
@@ -495,229 +557,239 @@ def player_report_pdf(
             posicion = f"{posicion} ({rol})"
 
         resumen, fortalezas, debilidades = narrative.player_strengths(prow, pool_desc)
-
-        fig1 = plt.figure(figsize=PAGE_SIZE)
-        fig1.set_facecolor(viz.SURFACE)
-
-        hero_h = 0.40
-        photo_x0, photo_w = 0.335, 0.33
-        y0 = _hero_band(
-            fig1,
-            display,
-            posicion,
-            [
-                ("Equipo", str(prow["team"])),
-                ("Competición", comp_label),
-                ("Minutos", f"{prow['minutes']:.0f}′"),
-                ("Comparado con", pool_desc),
-            ],
-            photo_url,
-            crest_url,
-            hero_h=hero_h,
-            photo_x0=photo_x0,
-            photo_w=photo_w,
-        )
-
-        # --- Perfil + Puntos fuertes + Por mejorar: una columna a la derecha
-        # de la foto (no debajo de toda la cabecera), igual que el hueco que
-        # deja la referencia junto al retrato.
-        x_right = photo_x0 + photo_w + 0.02
-        right_w = 0.945 - x_right
-        yy = 1 - 0.028 - 0.106
-        _section_title(fig1, x_right, yy, "Perfil", width=right_w)
-        if resumen:
-            for i, linea in enumerate(textwrap.wrap(resumen, width=30)):
-                fig1.text(x_right, yy - 0.022 - i * 0.0155, linea, fontsize=7.5, color=viz.INK_2, va="top")
-            yy -= 0.022 + len(textwrap.wrap(resumen, width=30)) * 0.0155
-        yy -= 0.024
-
-        def _rasgos_col(titulo: str, y_start: float, rasgos: list[tuple[str, str]]) -> float:
-            _section_title(fig1, x_right, y_start, titulo, width=right_w)
-            y = y_start
-            for t, d in rasgos[:2]:
-                y -= 0.020
-                fig1.text(x_right, y, t, fontsize=7.5, fontweight="bold", color=viz.INK, va="top")
-                if d:
-                    y -= 0.0125
-                    fig1.text(x_right, y, _truncate(d, 34), fontsize=6.5, color=viz.MUTED, va="top")
-                y -= 0.008
-            return y
-
-        yy = _rasgos_col("Puntos fuertes", yy, fortalezas)
-        yy -= 0.018
-        _rasgos_col("Por mejorar", yy, debilidades)
-
-        # --- Datos clave / Radar / Percentil medio: fila de tres columnas ---
-        y1 = y0
-        datos_x, datos_w = 0.055, 0.36
-        radar_x, radar_w = 0.445, 0.30
-        gauge_x, gauge_w = 0.775, 0.17
-
-        _section_title(fig1, datos_x, y1, "Datos clave", width=datos_w)
-        fig1.text(datos_x, y1 - 0.017, "per-90 y percentil vs. su rol", fontsize=6, color=viz.MUTED, va="top")
-        key_metrics = viz.RADAR_METRICS.get(group, viz.RADAR_METRICS["MF"])[:6]
-        row_h = 0.026
-        for i, (col, label) in enumerate(key_metrics):
-            yy_row = y1 - 0.05 - i * row_h
-            raw_col = col[:-4] if col.endswith("_pct") else col
-            valor = _fmt_metric_value(prow, raw_col)
-            pct = float(prow[col]) if pd.notna(prow.get(col)) else 0.0
-            fig1.text(datos_x, yy_row, label.replace("\n", " "), fontsize=7, color=viz.INK_2, va="top")
-            fig1.text(datos_x + 0.185, yy_row, valor, fontsize=7, fontweight="bold", color=viz.INK, va="top")
-            ax_bar = fig1.add_axes((datos_x + 0.23, yy_row - row_h * 0.5, datos_w - 0.27, row_h * 0.3))
-            ax_bar.set_xlim(0, 100)
-            ax_bar.set_ylim(0, 1)
-            ax_bar.axis("off")
-            ax_bar.barh([0.5], [100], height=1, color=viz.GRID)
-            ax_bar.barh([0.5], [pct], height=1, color=viz.BLUE)
-            fig1.text(
-                datos_x + datos_w - 0.025, yy_row, f"p{pct:.0f}", fontsize=6.5, color=viz.MUTED, va="top"
-            )
-
-        _section_title(fig1, radar_x, y1, "Radar", width=radar_w)
-        full_metrics = viz.RADAR_METRICS.get(group, viz.RADAR_METRICS["MF"])
-        valores_pct = [float(prow[c]) for c, _ in full_metrics if pd.notna(prow.get(c))]
-        avg_percentile = float(np.mean(valores_pct)) if valores_pct else 0.0
-        radar_fig = viz.radar_chart(prow, comp_label, display, pool, header=False)
-        radar_h = 0.17
-        ax_radar = fig1.add_axes((radar_x - 0.03, y1 - 0.03 - radar_h, radar_w + 0.05, radar_h))
-        ax_radar.imshow(mpimg.imread(_panel_png(radar_fig)))
-        ax_radar.axis("off")
-
-        _section_title(fig1, gauge_x, y1, "Percentil medio", width=gauge_w)
-        gauge_r = gauge_w * 0.4
-        gauge_size = gauge_r * 2.4
-        ax_gauge = fig1.add_axes(
-            (
-                gauge_x + (gauge_w - gauge_size) / 2,
-                y1 - 0.03 - radar_h / 2 - gauge_size / 2,
-                gauge_size,
-                gauge_size,
-            )
-        )
-        ax_gauge.set_xlim(-1, 1)
-        ax_gauge.set_ylim(-1, 1)
-        ax_gauge.set_aspect("equal")
-        ax_gauge.axis("off")
-        ax_gauge.add_patch(Wedge((0, 0), 1, 0, 360, width=0.22, facecolor=viz.GRID))
-        ax_gauge.add_patch(
-            Wedge((0, 0), 1, 90, 90 + 360 * avg_percentile / 100, width=0.22, facecolor=viz.BLUE)
-        )
-        ax_gauge.text(
-            0,
-            0,
-            f"{avg_percentile:.0f}",
-            fontsize=16,
-            fontweight="bold",
-            color=viz.INK,
-            ha="center",
-            va="center",
-        )
-        fig1.text(
-            gauge_x + gauge_w / 2,
-            y1 - 0.03 - radar_h - 0.01,
-            "SOBRE 100 PERCENTILES",
-            fontsize=5,
-            fontweight="bold",
-            color=viz.MUTED,
-            ha="center",
-            va="top",
-        )
-
-        y3 = y1 - 0.03 - radar_h - 0.03
-
-        # --- Mapas (6 paneles reales) ---
-        _section_title(fig1, 0.055, y3, "Mapas")
-        panels = [
-            ("Mapa de calor", _panel_heatmap(events, player)),
-            ("Passing map", _panel_passing_map(events, player)),
-            ("Acciones progresivas", _panel_progressive_map(events, player)),
-            ("Acciones defensivas", _panel_defensive_map(events, player)),
-            ("Mapa de tiros", _panel_shot_map(events, player)),
-            ("Mapa de toques", _panel_touch_map(events, player)),
-        ]
-        n = len(panels)
-        gap = 0.012
-        panel_w = (0.89 - gap * (n - 1)) / n
-        panel_h = 0.10
-        for i, (label, pf) in enumerate(panels):
-            x = 0.055 + i * (panel_w + gap)
-            fig1.text(x, y3 - 0.020, label.upper(), fontsize=5, fontweight="bold", color=viz.MUTED, va="top")
-            ax_bg = fig1.add_axes((x, y3 - 0.030 - panel_h, panel_w, panel_h))
-            ax_bg.add_patch(
-                FancyBboxPatch(
-                    (0, 0),
-                    1,
-                    1,
-                    boxstyle="round,pad=0,rounding_size=0.05",
-                    facecolor=viz.PANEL,
-                    edgecolor="none",
-                    transform=ax_bg.transAxes,
-                )
-            )
-            ax_bg.axis("off")
-            ax_img = fig1.add_axes((x + 0.005, y3 - 0.030 - panel_h + 0.005, panel_w - 0.01, panel_h - 0.01))
-            ax_img.imshow(mpimg.imread(_panel_png(pf)))
-            ax_img.axis("off")
-
-        # --- Con balón / Sin balón: más métricas per-90 reales ya calculadas,
-        # sin repetir las 6 de "Datos clave" (esas son las del radar) ---
-        y4 = y3 - 0.030 - panel_h - 0.03
-        con_balon = [
-            ("Pases completados/90", "passes_cmp_p90", False),
-            ("% de pase", "pass_pct", True),
-            ("Regates/90", "dribbles_cmp_p90", False),
-            ("Toques en área/90", "touches_box_p90", False),
-        ]
-        sin_balon = [
-            ("Entradas/90", "tackles_p90", False),
-            ("Bloqueos/90", "blocks_p90", False),
-            ("Despejes/90", "clearances_p90", False),
-            ("Entradas+Int. PAdj/90", "padj_tack_int_p90", False),
-        ]
-
-        def _stat_col(x: float, w: float, titulo: str, filas: list[tuple[str, str, bool]]) -> None:
-            _section_title(fig1, x, y4, titulo, width=w)
-            for i, (label, raw_col, es_pct) in enumerate(filas):
-                yy_row = y4 - 0.036 - i * 0.026
-                valor = prow.get(raw_col)
-                texto = f"{valor:.0f}%" if es_pct and pd.notna(valor) else _fmt_metric_value(prow, raw_col)
-                fig1.text(x, yy_row, label, fontsize=6.5, color=viz.INK_2, va="top")
-                fig1.text(
-                    x + w - 0.02, yy_row, texto, fontsize=6.5, fontweight="bold", color=viz.INK, va="top"
-                )
-
-        _stat_col(0.055, 0.44, "Con balón", con_balon)
-        _stat_col(0.505, 0.44, "Sin balón", sin_balon)
-
-        fig1.text(
-            0.055,
-            0.02,
-            "FUTBOL-ANALYTICS · DATOS: STATSBOMB OPEN DATA · NADA INVENTADO, TODO VERIFICABLE",
-            fontsize=5.5,
-            color=viz.MUTED,
-        )
-
-        # --- Página 2: perfiles similares y mejores destinos (motor de encaje) ---
-        # 4, no 5: deja sitio a la nota de que "parecido" es de estilo, no de nivel
-        sims = similarity.similar_players(table, player).head(4)
+        # se calculan ya (no solo en la página 2): el panel "Mejores destinos"
+        # de la fila inferior de la página 1 enseña un adelanto real
         destinos = fit.teams_for_player(table, events, player)
         destinos = destinos[~destinos["propio"]].head(5)
 
+        fig1 = plt.figure(figsize=PAGE_SIZE)
+        fig1.set_facecolor(_BG)
+
+        # --- Foto hero: retrato, recorte cover-fit exacto a la caja real
+        # (no al 900/1200 fijo de la referencia, que no siempre coincide
+        # con el aspect ratio físico de esta caja en concreto) ---
+        photo_x0, photo_y0, photo_w, photo_h = 0.34, 0.52, 0.63, 0.43
+        ax_photo = fig1.add_axes((photo_x0, photo_y0, photo_w, photo_h))
+        ax_photo.axis("off")
+        photo_img = _photo_box(
+            _fetch_image(photo_url), photo_w * PAGE_SIZE[0], photo_h * PAGE_SIZE[1], fade_frac=0.0
+        )
+        ax_photo.imshow(photo_img, interpolation="lanczos")
+
+        # --- Cabecera: nombre + posición ---
+        ax_h = fig1.add_axes((0.055, 0.89, 0.9, 0.07))
+        ax_h.axis("off")
+        _t(ax_h, 0, 0.80, "INFORME DE JUGADOR", 7, _MUTED, "bold")
+        _t(ax_h, 0.54, 0.80, "SCOUTING · ANÁLISIS · RENDIMIENTO", 6, _MUTED)
+        _t(ax_h, 0, 0.05, _truncate(display, 20), 30, _TEXT, "bold")
+        _t(ax_h, 0, -0.42, posicion.upper(), 10, _ACCENT, "bold")
+
+        # --- Columna de datos (izquierda, bajo la cabecera) ---
+        ax_info = fig1.add_axes((0.055, 0.52, 0.25, 0.34))
+        ax_info.axis("off")
+        info_rows = [
+            ("EQUIPO", _truncate(str(prow["team"]), 20)),
+            ("COMPETICIÓN", _truncate(comp_label, 20)),
+            ("MINUTOS", f"{prow['minutes']:.0f}′"),
+            ("COMPARADO CON", _truncate(pool_desc, 20)),
+        ]
+        yy = 0.88
+        for k, v in info_rows:
+            _t(ax_info, 0, yy, k, 5.5, _MUTED, "bold")
+            _t(ax_info, 0, yy - 0.07, v, 8, _TEXT, "bold")
+            yy -= 0.135
+
+        # --- Perfil + puntos fuertes + por mejorar (panel junto a la foto) ---
+        ax_prof = _panel_ax(fig1, 0.55, 0.52, 0.39, 0.30)
+        _t(ax_prof, 0.06, 0.93, "PERFIL", 7, _ACCENT, "bold")
+        n_lineas = 0
+        if resumen:
+            lineas = textwrap.wrap(resumen, width=58)
+            n_lineas = len(lineas)
+            for i, linea in enumerate(lineas):
+                _t(ax_prof, 0.06, 0.83 - i * 0.075, linea, 7, _MUTED)
+        yy = 0.83 - n_lineas * 0.075 - 0.06
+
+        def _rasgos(titulo: str, y_start: float, signo: str, rasgos: list[tuple[str, str]]) -> float:
+            _t(ax_prof, 0.06, y_start, titulo, 7, _ACCENT, "bold")
+            y = y_start - 0.085
+            for t, d in rasgos[:2]:
+                _t(ax_prof, 0.06, y, signo, 9, _ACCENT, "bold")
+                _t(ax_prof, 0.115, y, t, 7, _TEXT)
+                y -= 0.05
+                if d:
+                    _t(ax_prof, 0.115, y, _truncate(d, 62), 5.8, _MUTED)
+                    y -= 0.05
+            return y
+
+        # espaciado ajustado para que las 2+2 fortalezas/debilidades (con su
+        # línea de descripción) quepan dentro del propio panel — con la
+        # separación de la referencia (solo 4 líneas sueltas, sin descripción)
+        # el texto se salía por debajo y chocaba con "RADAR"/npxG de la fila
+        # de abajo, visto en un render real.
+        yy = _rasgos("PUNTOS FUERTES", yy, "+", fortalezas)
+        _rasgos("POR MEJORAR", yy - 0.01, "–", debilidades)
+
+        # --- Datos clave / Radar / Percentil medio: fila de tres columnas ---
+        key_metrics = viz.RADAR_METRICS.get(group, viz.RADAR_METRICS["MF"])[:6]
+        ax_data = _panel_ax(fig1, 0.055, 0.315, 0.40, 0.18)
+        _t(ax_data, 0.04, 0.91, "DATOS CLAVE", 8, _TEXT, "bold")
+        _t(ax_data, 0.42, 0.91, "VALOR", 5.5, _MUTED, "bold")
+        _t(ax_data, 0.57, 0.91, "PERCENTIL", 5.5, _MUTED, "bold")
+        yy = 0.76
+        for col, label in key_metrics:
+            raw_col = col[:-4] if col.endswith("_pct") else col
+            valor = _fmt_metric_value(prow, raw_col)
+            pct = float(prow[col]) if pd.notna(prow.get(col)) else 0.0
+            _t(ax_data, 0.04, yy, label.replace("\n", " "), 5.5, _MUTED)
+            _t(ax_data, 0.42, yy, valor, 6.2, _TEXT, "bold")
+            ax_data.add_patch(
+                FancyBboxPatch(
+                    (0.57, yy - 0.025),
+                    0.31,
+                    0.035,
+                    boxstyle="round,pad=0.002,rounding_size=.01",
+                    fc=_GRID,
+                    ec="none",
+                )
+            )
+            ax_data.add_patch(
+                FancyBboxPatch(
+                    (0.57, yy - 0.025),
+                    0.31 * pct / 100,
+                    0.035,
+                    boxstyle="round,pad=0.002,rounding_size=.01",
+                    fc=_ACCENT,
+                    ec="none",
+                )
+            )
+            _t(ax_data, 0.90, yy, f"{pct:.0f}", 5.5, _ACCENT, "bold", ha="right")
+            yy -= 0.115
+
+        full_metrics = viz.RADAR_METRICS.get(group, viz.RADAR_METRICS["MF"])
+        # abreviado solo para las etiquetas angulares del radar (muy poco
+        # sitio alrededor de un radar pequeño) — viz.RADAR_METRICS conserva
+        # las etiquetas completas para el resto de la app.
+        _RADAR_ABBR = {
+            "Entradas+Int.": "Ent+Int",
+            "(PAdj)": "PAdj",
+            "progresivos": "prog.",
+            "progresivas": "prog.",
+            "Recuperaciones": "Recup.",
+            "Toques en área": "Toques área",
+        }
+
+        def _abbr(label: str) -> str:
+            palabras = label.replace("\n", " ").split()
+            return " ".join(_RADAR_ABBR.get(p, p) for p in palabras)
+
+        radar_labels = [_abbr(lab) for _, lab in full_metrics]
+        radar_values = [float(prow[c]) if pd.notna(prow.get(c)) else 0.0 for c, _ in full_metrics]
+        avg_percentile = float(np.mean(radar_values)) if radar_values else 0.0
+
+        ax_radar = fig1.add_axes((0.49, 0.315, 0.23, 0.18), projection="polar")
+        _panel_radar_polar(ax_radar, radar_labels, radar_values)
+        _t(ax_radar, 0.5, 1.165, "RADAR", 7, _TEXT, "bold", ha="center")
+
+        ax_rating = _panel_ax(fig1, 0.74, 0.315, 0.205, 0.18)
+        _t(ax_rating, 0.08, 0.91, "PERCENTIL MEDIO", 6.5, _TEXT, "bold")
+        ax_rating.add_patch(Circle((0.50, 0.50), 0.30, fill=False, lw=5, ec=_GRID))
+        theta = np.linspace(0, 2 * np.pi, 100)
+        portion = 2 * np.pi * avg_percentile / 100
+        ax_rating.plot(
+            0.5 + 0.30 * np.cos(theta[theta <= portion]),
+            0.5 + 0.30 * np.sin(theta[theta <= portion]),
+            color=_ACCENT,
+            lw=5,
+        )
+        _t(ax_rating, 0.50, 0.53, f"{avg_percentile:.0f}", 18, _TEXT, "bold", ha="center")
+        _t(ax_rating, 0.50, 0.37, "/100", 6, _MUTED, "bold", ha="center")
+
+        # --- Mapas (6 paneles reales, sin tarjeta: directos sobre el fondo) ---
+        mapas = [
+            ("MAPA DE CALOR", _panel_heatmap(events, player)),
+            ("PASSING MAP", _panel_passing_map(events, player)),
+            ("ACCIONES PROGRESIVAS", _panel_progressive_map(events, player)),
+            ("ACCIONES DEFENSIVAS", _panel_defensive_map(events, player)),
+            ("MAPA DE TIROS", _panel_shot_map(events, player)),
+            ("MAPA DE TOQUES", _panel_touch_map(events, player)),
+        ]
+        n = len(mapas)
+        x0, gap = 0.055, 0.012
+        w = (0.89 - gap * (n - 1)) / n
+        for i, (label, pf) in enumerate(mapas):
+            ax_m = fig1.add_axes((x0 + i * (w + gap), 0.205, w, 0.085))
+            ax_m.axis("off")
+            _t(ax_m, 0, 1.18, label, 5.2, _TEXT, "bold")
+            ax_m.imshow(mpimg.imread(_panel_png(pf)))
+
+        # --- Con balón / Sin balón / Mejores destinos ---
+        con_balon = [
+            ("Pases completados/90", "passes_cmp_p90"),
+            ("% de pase", "pass_pct"),
+            ("Pases progresivos/90", "prog_passes_p90"),
+            ("Conducciones prog./90", "prog_carries_p90"),
+            ("Regates/90", "dribbles_cmp_p90"),
+        ]
+        sin_balon = [
+            ("Presiones/90", "pressures_p90"),
+            ("Recuperaciones/90", "recoveries_p90"),
+            ("Entradas/90", "tackles_p90"),
+            ("Intercepciones/90", "interceptions_p90"),
+            ("Entradas+Int. PAdj/90", "padj_tack_int_p90"),
+        ]
+
+        def _stat_panel(x: float, w_: float, titulo: str, filas: list[tuple[str, str]]) -> None:
+            ax = _panel_ax(fig1, x, 0.065, w_, 0.12)
+            _t(ax, 0.05, 0.88, titulo, 6.5, _TEXT, "bold")
+            for j, (label, raw_col) in enumerate(filas):
+                y = 0.68 - j * 0.15
+                pct = float(prow.get(f"{raw_col}_pct") or 0.0)
+                _t(ax, 0.05, y, label, 5.2, _MUTED)
+                # la barra deja hueco de sobra (hasta .78, no .88) antes del
+                # valor a la derecha: con el percentil real como relleno
+                # (no un tope arbitrario como .../100 o .../20), muchas filas
+                # llegan cerca del 100 % y el número se pegaba a la barra.
+                ax.add_patch(Rectangle((0.52, y - 0.018), 0.26, 0.032, fc=_GRID, ec="none"))
+                ax.add_patch(Rectangle((0.52, y - 0.018), 0.26 * pct / 100, 0.032, fc=_ACCENT, ec="none"))
+                _t(ax, 0.95, y, _fmt_metric_value(prow, raw_col), 5.2, _TEXT, "bold", ha="right")
+
+        _stat_panel(0.055, 0.28, "CON BALÓN", con_balon)
+        _stat_panel(0.345, 0.28, "SIN BALÓN", sin_balon)
+
+        ax_td = _panel_ax(fig1, 0.635, 0.065, 0.31, 0.12)
+        _t(ax_td, 0.05, 0.88, "MEJORES DESTINOS", 6.5, _ACCENT, "bold")
+        if destinos.empty:
+            _t(ax_td, 0.05, 0.6, "sin datos suficientes", 5.6, _MUTED)
+        else:
+            for j, (_, d) in enumerate(destinos.head(3).iterrows()):
+                y = 0.66 - j * 0.24
+                _t(ax_td, 0.05, y, _truncate(str(d["team"]), 24), 5.6, _MUTED)
+                _t(ax_td, 0.95, y, f"{d['encaje']:.0f}", 5.6, _TEXT, "bold", ha="right")
+
+        # --- Pie de página ---
+        ax_foot = fig1.add_axes((0.055, 0.025, 0.89, 0.025))
+        ax_foot.axis("off")
+        _t(ax_foot, 0, 0.5, "FUTBOL-ANALYTICS · DATOS: STATSBOMB OPEN DATA", 5, _MUTED, "bold")
+        _t(ax_foot, 1, 0.5, "NADA INVENTADO, TODO VERIFICABLE", 5, _MUTED, "bold", ha="right")
+
+        # --- Página 2: perfiles similares y mejores destinos (motor de encaje) ---
+        # 4, no 5: deja sitio a la nota de que "parecido" es de estilo, no de nivel
+        # (destinos ya se calculó arriba, para el panel "Mejores destinos" de la página 1)
+        sims = similarity.similar_players(table, player).head(4)
+
         fig2 = plt.figure(figsize=PAGE_SIZE)
-        fig2.set_facecolor(viz.SURFACE)
+        fig2.set_facecolor(_BG)
         fig2.text(
             0.055,
             0.955,
             "INFORME DE JUGADOR · FUTBOL-ANALYTICS",
             fontsize=7.5,
             fontweight="bold",
-            color=viz.BLUE,
+            color=_ACCENT,
             va="top",
         )
-        fig2.text(
-            0.055, 0.925, _truncate(display, 40), fontsize=16, fontweight="bold", color=viz.INK, va="top"
-        )
+        fig2.text(0.055, 0.925, _truncate(display, 40), fontsize=16, fontweight="bold", color=_TEXT, va="top")
 
         y_top = 0.86
         _section_title(fig2, 0.055, y_top, "Perfiles similares", width=0.42)
@@ -726,7 +798,7 @@ def player_report_pdf(
             y_top - 0.02,
             "estilo parecido, no necesariamente el mismo nivel",
             fontsize=6.5,
-            color=viz.MUTED,
+            color=_MUTED,
             va="top",
         )
         for i, (_, s) in enumerate(sims.iterrows()):
@@ -737,7 +809,7 @@ def player_report_pdf(
                     f"{s['similarity']:.3f}   {s['player']}  ({s['team']}, {s['primary_position']})", 60
                 ),
                 fontsize=9,
-                color=viz.INK_2,
+                color=_TEXT,
                 va="top",
             )
 
@@ -751,7 +823,7 @@ def player_report_pdf(
                     52,
                 ),
                 fontsize=9,
-                color=viz.INK_2,
+                color=_TEXT,
                 va="top",
             )
 
@@ -760,7 +832,7 @@ def player_report_pdf(
             0.02,
             "FUTBOL-ANALYTICS · DATOS: STATSBOMB OPEN DATA · NADA INVENTADO, TODO VERIFICABLE",
             fontsize=5.5,
-            color=viz.MUTED,
+            color=_MUTED,
         )
 
         out = io.BytesIO()
@@ -789,7 +861,6 @@ def ficha_report_pdf(
     `ficha_sm` pueden venir ambas a None si ningún servicio tuvo datos; el
     PDF se genera igual, dejándolo dicho.
     """
-    viz.use_theme("dark")
     with plt.rc_context(_FONT_CONTEXT):
         candidatos_nombre = [
             n
@@ -805,7 +876,7 @@ def ficha_report_pdf(
         fortalezas, a_vigilar = narrative.season_strengths(temporadas)
 
         fig = plt.figure(figsize=PAGE_SIZE)
-        fig.set_facecolor(viz.SURFACE)
+        fig.set_facecolor(_BG)
 
         info_items = [
             (etiqueta, str(valor))
@@ -831,7 +902,7 @@ def ficha_report_pdf(
             if v
         )
         if detalles:
-            fig.text(0.055, y, detalles, fontsize=8.5, color=viz.MUTED, va="top")
+            fig.text(0.055, y, detalles, fontsize=8.5, color=_MUTED, va="top")
             y -= 0.03
 
         # justo bajo la cabecera, no al final donde sobre sitio: es la
@@ -845,23 +916,23 @@ def ficha_report_pdf(
             _section_title(fig, 0.055, y_top, "Fortalezas", width=0.42)
             for i, (titulo, definicion) in enumerate(fortalezas):
                 y_t = y_top - 0.024 - i * 0.033
-                fig.text(0.055, y_t, titulo, fontsize=8.5, color=viz.INK_2, va="top")
+                fig.text(0.055, y_t, titulo, fontsize=8.5, color=_TEXT, va="top")
                 if definicion:
                     fig.text(
-                        0.055, y_t - 0.013, _truncate(definicion, 68), fontsize=6.5, color=viz.MUTED, va="top"
+                        0.055, y_t - 0.013, _truncate(definicion, 68), fontsize=6.5, color=_MUTED, va="top"
                     )
             if a_vigilar:
                 _section_title(fig, 0.54, y_top, "A vigilar", width=0.4)
                 for i, (titulo, definicion) in enumerate(a_vigilar):
                     y_t = y_top - 0.024 - i * 0.033
-                    fig.text(0.54, y_t, titulo, fontsize=8.5, color=viz.INK_2, va="top")
+                    fig.text(0.54, y_t, titulo, fontsize=8.5, color=_TEXT, va="top")
                     if definicion:
                         fig.text(
                             0.54,
                             y_t - 0.013,
                             _truncate(definicion, 68),
                             fontsize=6.5,
-                            color=viz.MUTED,
+                            color=_MUTED,
                             va="top",
                         )
             max_items = max(len(fortalezas), len(a_vigilar), 1)
@@ -875,7 +946,7 @@ def ficha_report_pdf(
             "cargados en la app, no hay eventos con coordenadas de jugada: sin ellos no se puede "
             "calcular radar de percentiles, mapas de calor/tiros/pases ni el motor de encaje.",
             fontsize=7.5,
-            color=viz.MUTED,
+            color=_MUTED,
             va="top",
             wrap=True,
         )
@@ -886,7 +957,7 @@ def ficha_report_pdf(
             _section_title(fig, 0.055, y, "Biografía (TheSportsDB, en inglés)")
             y -= 0.03
             texto = descripcion[:700] + ("…" if len(descripcion) > 700 else "")
-            fig.text(0.055, y, texto, fontsize=8.5, color=viz.INK_2, va="top", wrap=True, ha="left")
+            fig.text(0.055, y, texto, fontsize=8.5, color=_TEXT, va="top", wrap=True, ha="left")
             # ~95 caracteres por línea envuelta a este ancho y tamaño; estimación
             # generosa para dejar sitio de sobra sin reservar el máximo siempre.
             lineas = -(-len(texto) // 95)  # división entera hacia arriba
@@ -904,7 +975,7 @@ def ficha_report_pdf(
                 "titularidades = partidos de inicio; goles encajados y porterías a cero solo aplican "
                 "a porteros.",
                 fontsize=7,
-                color=viz.MUTED,
+                color=_MUTED,
                 va="top",
                 wrap=True,
             )
@@ -931,13 +1002,13 @@ def ficha_report_pdf(
             tbl.auto_set_column_width(col=list(range(len(header))))
             tbl.scale(1, 1.6)
             for (row, _col), cell in tbl.get_celld().items():
-                cell.set_edgecolor(viz.GRID)
+                cell.set_edgecolor(_GRID)
                 if row == 0:
-                    cell.set_facecolor(viz.PANEL)
-                    cell.set_text_props(fontweight="bold", color=viz.BLUE)
+                    cell.set_facecolor(_PANEL)
+                    cell.set_text_props(fontweight="bold", color=_ACCENT)
                 else:
-                    cell.set_facecolor(viz.SURFACE)
-                    cell.set_text_props(color=viz.INK_2)
+                    cell.set_facecolor(_BG)
+                    cell.set_text_props(color=_TEXT)
             y -= alto_tabla + 0.03
         else:
             fig.text(
@@ -946,7 +1017,7 @@ def ficha_report_pdf(
                 "Sin estadísticas de temporada disponibles (falta token de Sportmonks, o el "
                 "jugador no está en su cobertura).",
                 fontsize=9,
-                color=viz.MUTED,
+                color=_MUTED,
                 va="top",
             )
             y -= 0.03
@@ -965,7 +1036,7 @@ def ficha_report_pdf(
                     y,
                     _truncate(f"{t.get('fecha', '?')} — {origen} → {destino} · {importe_txt}", 80),
                     fontsize=8,
-                    color=viz.INK_2,
+                    color=_TEXT,
                     va="top",
                 )
                 y -= 0.017
@@ -976,7 +1047,7 @@ def ficha_report_pdf(
             min(y, 0.03),
             "FUTBOL-ANALYTICS · FUENTES: THESPORTSDB, SPORTMONKS",
             fontsize=5.5,
-            color=viz.MUTED,
+            color=_MUTED,
         )
 
         out = io.BytesIO()
