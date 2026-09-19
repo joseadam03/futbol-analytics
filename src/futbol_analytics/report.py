@@ -630,11 +630,20 @@ def _panel_touch_map(events: pd.DataFrame, player: str):
     return fig
 
 
+#: subtipos reales de `shot_outcome` que obligaron al portero a intervenir
+#: o acabaron dentro (verificado contra datos reales de StatsBomb en
+#: data/cache/events_43_106.pkl) — "a puerta", como en la referencia
+#: (Goal/On target/Off target). "Blocked" no llegó a probar al portero
+#: (lo paró un defensa antes), así que no cuenta como a puerta.
+_SHOT_ON_TARGET = {"Goal", "Saved", "Saved to Post"}
+
+
 def _panel_shot_map(events: pd.DataFrame, player: str):
     ev = _report_player_events(events, player)
     shots = ev[(ev["type"] == "Shot") & (ev.get("shot_type") != "Penalty")].copy()
     goals = shots[shots["shot_outcome"] == "Goal"]
-    misses = shots[shots["shot_outcome"] != "Goal"]
+    on_target = shots[shots["shot_outcome"].isin(_SHOT_ON_TARGET - {"Goal"})]
+    off_target = shots[~shots["shot_outcome"].isin(_SHOT_ON_TARGET)]
 
     pitch = VerticalPitch(pitch_type="statsbomb", half=True, pitch_color=_BG, line_color=_GRID, linewidth=1)
     fig, ax = pitch.draw(figsize=(3.1, 2.5))
@@ -652,8 +661,10 @@ def _panel_shot_map(events: pd.DataFrame, player: str):
             **kw,
         )
 
-    # mismo criterio que la referencia: gol en rojo, el resto en un tono neutro
-    _plot(misses, facecolor=_TEXT, edgecolor="none", alpha=0.4)
+    # mismo criterio que la referencia: gol en rojo, a puerta en blanco,
+    # fuera en un tono neutro (antes todo lo que no era gol iba igual).
+    _plot(off_target, facecolor=_MUTED, edgecolor="none", alpha=0.4)
+    _plot(on_target, facecolor=_TEXT, edgecolor="none", alpha=0.75)
     _plot(goals, facecolor=_RED, edgecolor=_BG, linewidth=1, alpha=0.95)
     return fig
 

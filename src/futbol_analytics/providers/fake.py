@@ -232,12 +232,26 @@ class FakeProvider(Provider):
                                 possession=posesion,
                             )
                             clave = pase["id"]
+                        # un único sorteo entre gol / parada (a puerta) / fuera,
+                        # en vez de solo gol/fuera: sin "Saved" el mapa de
+                        # tiros del informe (que distingue a puerta de fuera,
+                        # como la referencia) no tenía nada que enseñar en
+                        # modo demo. 38% de "a puerta" entre los no-gol viene
+                        # de la proporción real Saved/(Off T+Saved+Wayward+
+                        # Post) en data/cache/events_43_106.pkl.
+                        u_tiro = rng.random()
+                        if u_tiro < xg_tiro:
+                            outcome_tiro = "Goal"
+                        elif u_tiro < xg_tiro + (1 - xg_tiro) * 0.38:
+                            outcome_tiro = "Saved"
+                        else:
+                            outcome_tiro = "Off T"
                         evento(
                             **comun,
                             type="Shot",
                             location=origen,
                             shot_type="Open Play",
-                            shot_outcome="Goal" if rng.random() < xg_tiro else "Off T",
+                            shot_outcome=outcome_tiro,
                             shot_statsbomb_xg=xg_tiro,
                             shot_key_pass_id=clave,
                             shot_body_part="Head" if rng.random() < 0.15 else "Right Foot",
