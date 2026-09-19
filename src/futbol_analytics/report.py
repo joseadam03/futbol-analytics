@@ -44,7 +44,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.backends.backend_pdf import PdfPages
-from matplotlib.patches import Circle, FancyBboxPatch, Rectangle
+from matplotlib.patches import Arc, Circle, Ellipse, FancyBboxPatch, Polygon, Rectangle
 from mplsoccer import Pitch, VerticalPitch
 from PIL import Image
 from scipy.ndimage import gaussian_filter
@@ -269,6 +269,63 @@ def _t(
     hacia arriba/abajo, que es justo lo que usa la referencia para separar
     título/subtítulo sin crear un axes por línea)."""
     ax.text(x, y, s, fontsize=size, color=color, weight=weight, ha=ha, va=va, transform=ax.transAxes)
+
+
+def _icono_info(ax, x: float, y: float, tipo: str, color: str, y_scale: float) -> None:
+    """Icono lineal diminuto junto a cada fila de la columna de datos —
+    mismo lenguaje visual que la referencia (un icono por dato: equipo,
+    competición, minutos, comparado con). Dibujado con formas de
+    matplotlib, no con un glifo de emoji: al incrustar en PDF con una
+    fuente propia (Inter) no hay garantía de soporte de emoji a color,
+    así que un icono de verdad (líneas/patches) es lo único fiable aquí.
+    Centrado en (x, y) en coordenadas del propio eje (transAxes).
+
+    `y_scale` (ancho físico del eje / alto físico del eje) es necesario
+    porque este eje no es cuadrado en pulgadas: un "Circle" (radio igual
+    en x e y en coordenadas de datos/ejes) sale ovalado sin corregirlo —
+    visto al renderizar un primer intento de estos iconos, parecían
+    garabatos en vez de formas reconocibles. Con Ellipse y un desplazamiento
+    de puntos escalado en y por este factor, el icono sale visualmente
+    proporcionado pese a la caja rectangular del eje.
+    """
+    lw = 1.1
+    kwargs = {"fill": False, "ec": color, "lw": lw, "transform": ax.transAxes}
+
+    def ys(dy: float) -> float:
+        return y + dy * y_scale
+
+    if tipo == "equipo":
+        pts = [
+            (x, ys(0.09)),
+            (x + 0.042, ys(0.045)),
+            (x + 0.042, ys(-0.045)),
+            (x, ys(-0.105)),
+            (x - 0.042, ys(-0.045)),
+            (x - 0.042, ys(0.045)),
+        ]
+        ax.add_patch(Polygon(pts, closed=True, **kwargs))
+    elif tipo == "competicion":
+        # copa: cuerpo trapezoidal + dos asas (arcos) + pie, no un círculo
+        # con un palo debajo (leía como una piruleta, no como un trofeo).
+        copa = [
+            (x - 0.026, ys(0.06)),
+            (x + 0.026, ys(0.06)),
+            (x + 0.014, ys(-0.03)),
+            (x - 0.014, ys(-0.03)),
+        ]
+        ax.add_patch(Polygon(copa, closed=True, **kwargs))
+        arc_kwargs = {"ec": color, "lw": lw, "transform": ax.transAxes}
+        ax.add_patch(Arc((x - 0.026, ys(0.03)), 0.022, 0.022 * y_scale, theta1=90, theta2=270, **arc_kwargs))
+        ax.add_patch(Arc((x + 0.026, ys(0.03)), 0.022, 0.022 * y_scale, theta1=270, theta2=90, **arc_kwargs))
+        ax.plot([x, x], [ys(-0.03), ys(-0.07)], color=color, lw=lw, transform=ax.transAxes)
+        ax.plot([x - 0.016, x + 0.016], [ys(-0.07), ys(-0.07)], color=color, lw=lw, transform=ax.transAxes)
+    elif tipo == "minutos":
+        ax.add_patch(Ellipse((x, y), 0.08, 0.08 * y_scale, **kwargs))
+        ax.plot([x, x], [y, ys(0.042)], color=color, lw=lw, transform=ax.transAxes)
+        ax.plot([x, x + 0.02], [y, y], color=color, lw=lw, transform=ax.transAxes)
+    elif tipo == "grupo":
+        ax.add_patch(Ellipse((x - 0.016, y), 0.056, 0.056 * y_scale, **kwargs))
+        ax.add_patch(Ellipse((x + 0.016, y), 0.056, 0.056 * y_scale, **kwargs))
 
 
 def _panel_ax(fig, x: float, y: float, w: float, h: float):
@@ -633,21 +690,32 @@ def player_report_pdf(
         ax_h.axis("off")
         _t(ax_h, 0, 0.80, "INFORME DE JUGADOR", 7, _MUTED, "bold")
         _t(ax_h, 0, 0.05, _truncate(display, 20), 30, _TEXT, "bold")
-        _t(ax_h, 0, -0.42, posicion.upper(), 10, _ACCENT, "bold")
+        # clip_on=False: a diferencia de _t() (texto, sin recorte por
+        # defecto), un patch normal SÍ se recorta al propio eje — sin esto
+        # la barrita, fuera del rango [0,1] de este eje, no se veía.
+        ax_h.add_patch(
+            Rectangle((0, -0.48), 0.006, 0.12, transform=ax_h.transAxes, color=_ACCENT, lw=0, clip_on=False)
+        )
+        _t(ax_h, 0.018, -0.42, posicion.upper(), 10, _ACCENT, "bold")
 
-        # --- Columna de datos (izquierda, bajo la cabecera) ---
+        # --- Columna de datos (izquierda, bajo la cabecera): un icono por
+        # fila, mismo lenguaje visual que la referencia ---
         ax_info = fig1.add_axes((0.055, 0.52, 0.25, 0.34))
         ax_info.axis("off")
         info_rows = [
-            ("EQUIPO", _truncate(str(prow["team"]), 20)),
-            ("COMPETICIÓN", _truncate(comp_label, 20)),
-            ("MINUTOS", f"{prow['minutes']:.0f}′"),
-            ("COMPARADO CON", _truncate(pool_desc, 20)),
+            ("equipo", "EQUIPO", _truncate(str(prow["team"]), 20)),
+            ("competicion", "COMPETICIÓN", _truncate(comp_label, 20)),
+            ("minutos", "MINUTOS", f"{prow['minutes']:.0f}′"),
+            ("grupo", "COMPARADO CON", _truncate(pool_desc, 20)),
         ]
+        # el eje no es cuadrado en pulgadas físicas (0.25 x 0.34 de figura):
+        # sin corregirlo, un "círculo" de igual radio en x e y sale ovalado.
+        info_y_scale = (0.25 * PAGE_SIZE[0]) / (0.34 * PAGE_SIZE[1])
         yy = 0.88
-        for k, v in info_rows:
-            _t(ax_info, 0, yy, k, 5.5, _MUTED, "bold")
-            _t(ax_info, 0, yy - 0.07, v, 8, _TEXT, "bold")
+        for icono, k, v in info_rows:
+            _icono_info(ax_info, 0.025, yy - 0.02, icono, _ACCENT, info_y_scale)
+            _t(ax_info, 0.075, yy, k, 5.5, _MUTED, "bold")
+            _t(ax_info, 0.075, yy - 0.07, v, 8, _TEXT, "bold")
             yy -= 0.135
 
         # --- Perfil + puntos fuertes + por mejorar (a la derecha de la
