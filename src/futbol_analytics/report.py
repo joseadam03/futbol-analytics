@@ -1,8 +1,9 @@
 """Informe-CV del jugador: foto de cabecera, radar, mapas reales, similares y destinos.
 
-Plantilla oscura con tipografía Inter (SIL OFL, empaquetada en
-assets/fonts/), foto a banda completa en la cabecera y paneles de mapas
-reales generados con matplotlib + mplsoccer — nunca imágenes simuladas.
+Plantilla clara (tema `light` de viz.py, para imprimir/adjuntar) con
+tipografía Inter (SIL OFL, empaquetada en assets/fonts/), foto a banda
+completa en la cabecera y paneles de mapas reales generados con matplotlib +
+mplsoccer — nunca imágenes simuladas.
 Todo el texto explicativo viene de narrative.py (reglas deterministas sobre
 datos ya calculados), nunca inventado; el "percentil medio" del medidor es
 la media real de los mismos percentiles que dibuja el radar, no una
@@ -107,9 +108,9 @@ def _photo_box(
     img: Image.Image | None, aspect_w: float, aspect_h: float, fade_frac: float = 0.55
 ) -> Image.Image:
     """Recorta la foto al aspect ratio de la caja (cover-fit, sin deformar) y funde
-    su borde izquierdo con el fondo oscuro (scrim), para que el nombre pueda
-    montarse encima y siga siendo legible sin depender de lo clara u oscura
-    que sea la foto real.
+    su borde izquierdo con el fondo (scrim), para que el nombre pueda montarse
+    encima y siga siendo legible sin depender de lo clara u oscura que sea la
+    foto real.
 
     `aspect_w`/`aspect_h` son solo la proporción de la caja destino (en
     pulgadas de figura, p. ej. `photo_w_frac * PAGE_SIZE[0]`): aquí solo se
@@ -117,6 +118,14 @@ def _photo_box(
     `interpolation="lanczos"` al dibujar (mismo patrón que el resto del
     informe para fotos pequeñas), así que forzar aquí un tamaño de píxeles
     fijo sería un resize redundante.
+
+    Las fotos de jugador (TheSportsDB/Sportmonks) son retrato, mucho más
+    altas que anchas, y la caja de cabecera es apaisada — recortar la altura
+    centrado corta la coronilla y se queda solo con barbilla-a-pecho (visto
+    en un informe real). Sin detección de cara, la aproximación es anclar el
+    recorte casi arriba del todo (deja solo un margen pequeño de aire sobre
+    la cabeza) y quitar el resto por abajo, que es donde suele estar el
+    torso/uniforme, no la cara.
 
     Sin foto, un informe sigue siendo válido: rectángulo plano del color de
     panel en vez de un hueco vacío que desentone del resto de la cabecera.
@@ -132,8 +141,8 @@ def _photo_box(
             img = img.crop((x0, 0, x0 + new_w, img.height))
         else:
             new_h = int(img.width / box_ratio)
-            y0 = (img.height - new_h) // 2
-            img = img.crop((0, y0, img.width, y0 + new_h))
+            margen_superior = min(int(img.height * 0.08), img.height - new_h)
+            img = img.crop((0, margen_superior, img.width, margen_superior + new_h))
     else:
         fallback_w = 1000
         img = Image.new("RGB", (fallback_w, int(fallback_w / box_ratio)), bg)
@@ -433,7 +442,7 @@ def player_report_pdf(
     crest_url: str | None = None,
 ) -> bytes:
     """PDF de dos páginas con el informe completo del jugador."""
-    viz.use_theme("dark")
+    viz.use_theme("light")
     with plt.rc_context(_FONT_CONTEXT):
         prow = table[table["player"] == player].iloc[0]
         apodo = prow.get("nickname")
@@ -698,7 +707,7 @@ def ficha_report_pdf(
     `ficha_sm` pueden venir ambas a None si ningún servicio tuvo datos; el
     PDF se genera igual, dejándolo dicho.
     """
-    viz.use_theme("dark")
+    viz.use_theme("light")
     with plt.rc_context(_FONT_CONTEXT):
         candidatos_nombre = [
             n
