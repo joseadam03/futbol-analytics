@@ -36,6 +36,7 @@ from __future__ import annotations
 import gc
 import io
 import textwrap
+from datetime import date
 from pathlib import Path
 
 import matplotlib.font_manager as fm
@@ -352,6 +353,30 @@ def _icono_info(ax, x: float, y: float, tipo: str, color: str, y_scale: float) -
     elif tipo == "grupo":
         ax.add_patch(Ellipse((x - 0.016, y), 0.056, 0.056 * y_scale, **kwargs))
         ax.add_patch(Ellipse((x + 0.016, y), 0.056, 0.056 * y_scale, **kwargs))
+    elif tipo == "edad":
+        # calendario: rectángulo + línea de cabecera + dos anillas
+        w, h = 0.08, 0.075
+        ax.add_patch(Rectangle((x - w / 2, ys(-h / 2)), w, h * y_scale, **kwargs))
+        ax.plot([x - w / 2, x + w / 2], [ys(h / 2 - 0.02)] * 2, color=color, lw=lw, transform=ax.transAxes)
+        for dx in (-w * 0.28, w * 0.28):
+            ax.plot(
+                [x + dx, x + dx], [ys(h / 2), ys(h / 2 + 0.02)], color=color, lw=lw, transform=ax.transAxes
+            )
+    elif tipo == "nacionalidad":
+        # bandera genérica en un mástil: no hay banderas reales de países
+        # dibujadas (harían falta activos verificados por país, fuera de
+        # alcance), solo el icono del campo "nacionalidad".
+        ax.plot([x - 0.04, x - 0.04], [ys(-0.06), ys(0.09)], color=color, lw=lw, transform=ax.transAxes)
+        bandera = [(x - 0.04, ys(0.09)), (x + 0.05, ys(0.055)), (x - 0.04, ys(0.02))]
+        ax.add_patch(Polygon(bandera, closed=True, **kwargs))
+    elif tipo == "altura":
+        # flecha vertical con topes, como una medida de altura
+        ax.plot([x, x], [ys(-0.08), ys(0.09)], color=color, lw=lw, transform=ax.transAxes)
+        for yy in (ys(0.09), ys(-0.08)):
+            ax.plot([x - 0.025, x + 0.025], [yy, yy], color=color, lw=lw, transform=ax.transAxes)
+    elif tipo == "pie":
+        ax.add_patch(Ellipse((x, ys(-0.02)), 0.05, 0.08 * y_scale, **kwargs))
+        ax.add_patch(Ellipse((x + 0.015, ys(0.05)), 0.035, 0.035 * y_scale, **kwargs))
 
 
 def _panel_ax(fig, x: float, y: float, w: float, h: float):
@@ -496,21 +521,92 @@ def _panel_heatmap(events: pd.DataFrame, player: str):
     return fig
 
 
-def _panel_position_pitch(events: pd.DataFrame, player: str):
-    """Punto de "dónde juega": centroide real de sus toques (mismo criterio
-    de _panel_heatmap), no una zona puesta a ojo. Se dibuja con `scatter`
-    (marcador circular en puntos de pantalla) y no con un `Circle` en
-    coordenadas de datos, precisamente para no arrastrar la distorución de
-    aspect ratio que sí hay que corregir a mano en _icono_info."""
+def _touch_stats(events: pd.DataFrame, player: str) -> tuple[float, float, float, float] | None:
+    """Centroide (dónde juega de media) y dispersión (cuánto se mueve) de
+    sus toques — mismo criterio de "toque" que _panel_heatmap. Base real
+    y verificable tanto para el punto del mini-campo como para las
+    etiquetas del perfil táctico (nunca una zona puesta a mano)."""
     ev = _report_player_events(events, player)
     touches = ev[ev["type"].isin(["Pass", "Shot", "Carry", "Dribble", "Ball Receipt*"])]
+    if len(touches) < 1:
+        return None
+    x = touches["location"].str[0].astype(float)
+    y = touches["location"].str[1].astype(float)
+    return float(x.mean()), float(y.mean()), float(x.std(ddof=0)), float(y.std(ddof=0))
+
+
+def _panel_position_pitch(events: pd.DataFrame, player: str):
+    """Punto de "dónde juega": centroide real de sus toques, no una zona
+    puesta a ojo. Se dibuja con `scatter` (marcador circular en puntos de
+    pantalla) y no con un `Circle` en coordenadas de datos, precisamente
+    para no arrastrar la distorución de aspect ratio que sí hay que
+    corregir a mano en _icono_info."""
+    stats = _touch_stats(events, player)
     pitch, fig, ax = _mini_pitch(figsize=(2.3, 1.55))
-    if len(touches) >= 1:
-        cx = touches["location"].str[0].astype(float).mean()
-        cy = touches["location"].str[1].astype(float).mean()
+    if stats is not None:
+        cx, cy, _, _ = stats
         for size, alpha in ((950, 0.12), (480, 0.25), (150, 0.95)):
             ax.scatter([cx], [cy], s=size, color=_ACCENT, alpha=alpha, zorder=3, linewidths=0)
     return fig
+
+
+#: umbrales en coordenadas StatsBomb (campo 120×80, siempre en la
+#: perspectiva atacante del equipo del evento — ver cabecera de teams.py)
+#: para las etiquetas del perfil táctico: tercios de largo y de ancho.
+_TERCIO_X = (40.0, 80.0)
+_TERCIO_Y = (26.67, 53.33)
+
+
+def _perfil_tactico(
+    events: pd.DataFrame, player: str, rol_o_grupo: str, pass_pct: float | None
+) -> list[tuple[str, str]]:
+    """Filas del bloque "Perfil táctico": reglas deterministas sobre datos
+    ya calculados (mismo espíritu que narrative.py/fit.py), nunca texto
+    generado. "Posición principal" ya es un dato; el resto son cortes de
+    la posición media y de la dispersión reales de sus toques, y del %
+    de pase ya calculado — ver los umbrales en _TERCIO_X/_TERCIO_Y."""
+    stats = _touch_stats(events, player)
+    if stats is None:
+        return [
+            ("Posición principal", rol_o_grupo),
+            ("Altura recepción", "—"),
+            ("Ocupación", "—"),
+            ("Movimiento", "—"),
+            ("Juego asociativo", "—"),
+        ]
+    cx, cy, std_x, std_y = stats
+    if cx < _TERCIO_X[0]:
+        altura = "Tercio defensivo"
+    elif cx < _TERCIO_X[1]:
+        altura = "Tercio medio"
+    else:
+        altura = "Tercio de ataque"
+    if cy < _TERCIO_Y[0]:
+        banda = "Banda izquierda"
+    elif cy < _TERCIO_Y[1]:
+        banda = "Zona central"
+    else:
+        banda = "Banda derecha"
+    # dispersión combinada (norma de las desviaciones en x e y) frente al
+    # umbral: un jugador "posicional" se mueve dentro de una zona acotada;
+    # uno "itinerante" aparece en puntos muy distintos del campo.
+    dispersion = (std_x**2 + std_y**2) ** 0.5
+    movimiento = "Itinerante" if dispersion > 18.0 else "Posicional"
+    if pass_pct is None:
+        asociativo = "—"
+    elif pass_pct >= 85:
+        asociativo = "Alto"
+    elif pass_pct >= 70:
+        asociativo = "Medio"
+    else:
+        asociativo = "Bajo"
+    return [
+        ("Posición principal", rol_o_grupo),
+        ("Altura recepción", altura),
+        ("Ocupación", banda),
+        ("Movimiento", movimiento),
+        ("Juego asociativo", asociativo),
+    ]
 
 
 def _panel_passing_map(events: pd.DataFrame, player: str):
@@ -669,6 +765,21 @@ def _panel_shot_map(events: pd.DataFrame, player: str):
     return fig
 
 
+def _edad_desde_fecha(fecha: object) -> str:
+    """Edad en años a partir de una fecha de nacimiento ISO (TheSportsDB
+    `dateBorn` / Sportmonks `date_of_birth`) — calculada, no inventada.
+    "—" si no hay fecha o no se puede parsear."""
+    if not isinstance(fecha, str) or not fecha:
+        return "—"
+    try:
+        nacimiento = date.fromisoformat(fecha[:10])
+    except ValueError:
+        return "—"
+    hoy = date.today()
+    edad = hoy.year - nacimiento.year - ((hoy.month, hoy.day) < (nacimiento.month, nacimiento.day))
+    return str(edad)
+
+
 def player_report_pdf(
     table: pd.DataFrame,
     events: pd.DataFrame,
@@ -677,16 +788,19 @@ def player_report_pdf(
     display: str | None = None,
     photo_url: str | None = None,
     crest_url: str | None = None,
+    bio: dict | None = None,
 ) -> bytes:
     """PDF de dos páginas con el informe completo del jugador.
 
     Cabecera, tres columnas de datos y fila de mapas en coordenadas
     calcadas de una referencia real (posiciones exactas), con la paleta
     de esa misma referencia — pero solo con datos reales ya calculados en
-    metrics.py/narrative.py/fit.py. Sin edad/altura/pie preferido/
-    nacionalidad (no existen en StatsBomb open data) ni un "Overall
-    Rating" inventado: el medidor sigue siendo el percentil medio real,
-    igual que antes de esta plantilla.
+    metrics.py/narrative.py/fit.py. `bio` (edad/nacionalidad/altura, de
+    TheSportsDB — pie preferido no está en ninguna fuente ya integrada,
+    así que ese campo siempre enseña "—") la resuelve quien llama, nunca
+    esta función: mismo patrón que `photo_url`/`crest_url`, sin llamadas
+    de red propias aquí. Sin "Overall Rating" inventado: el medidor sigue
+    siendo el percentil medio real, igual que antes de esta plantilla.
     """
     with plt.rc_context(_FONT_CONTEXT):  # type: ignore[arg-type]
         prow = table[table["player"] == player].iloc[0]
@@ -776,24 +890,36 @@ def player_report_pdf(
         # que sí llega hasta abajo — "se ve mal, hace tan bajo", visto en
         # un informe real. El techo (arriba del todo) se mantiene fijo,
         # justo bajo la posición; se encoge por abajo.
-        info_h = 0.24
-        ax_info = fig1.add_axes((0.055, 0.77 - info_h, 0.25, info_h))
-        ax_info.axis("off")
+        # biografía: de TheSportsDB, resuelta por quien llama (ver
+        # docstring) — "—" en cualquier campo sin dato, nunca inventado.
+        bio = bio or {}
         info_rows = [
+            ("edad", "EDAD", _edad_desde_fecha(bio.get("nacimiento"))),
+            ("nacionalidad", "NACIONALIDAD", str(bio.get("nacionalidad") or "—")),
+            ("altura", "ALTURA", str(bio.get("altura") or "—")),
+            ("pie", "PIE PREFERIDO", "—"),
             ("equipo", "EQUIPO", _truncate(str(prow["team"]), 20)),
             ("competicion", "COMPETICIÓN", _truncate(comp_label, 20)),
-            ("minutos", "MINUTOS", f"{prow['minutes']:.0f}′"),
-            ("grupo", "COMPARADO CON", _truncate(pool_desc, 20)),
         ]
+        # 6 filas fijas ahora (antes 4): el hueco disponible es el mismo,
+        # entre el borde de la cabecera (0.78) y el borde de DATOS CLAVE
+        # (0.315 + 0.18 = 0.495, no 0.315 — ese es su y0, no su techo), así
+        # que se reparten en ese hueco (0.265) en vez de escalar la altura
+        # de la caja desde las 4 filas originales, que se salía por abajo
+        # y quedaba tapado por el panel opaco de DATOS CLAVE.
+        info_h = 0.265
+        ax_info = fig1.add_axes((0.055, 0.78 - info_h, 0.25, info_h))
+        ax_info.axis("off")
         # el eje no es cuadrado en pulgadas físicas: sin corregirlo, un
         # "círculo" de igual radio en x e y sale ovalado.
         info_y_scale = (0.25 * PAGE_SIZE[0]) / (info_h * PAGE_SIZE[1])
-        yy = 0.83
+        paso, icon_dy, valor_dy = 0.155, 0.0227, 0.0803
+        yy = 0.87
         for icono, k, v in info_rows:
-            _icono_info(ax_info, 0.025, yy - 0.028, icono, _MUTED, info_y_scale)
+            _icono_info(ax_info, 0.025, yy - icon_dy, icono, _MUTED, info_y_scale)
             _t(ax_info, 0.075, yy, k, 5.5, _MUTED, "bold")
-            _t(ax_info, 0.075, yy - 0.099, v, 8, _TEXT, "bold")
-            yy -= 0.191
+            _t(ax_info, 0.075, yy - valor_dy, v, 8, _TEXT, "bold")
+            yy -= paso
 
         # --- Perfil + puntos fuertes + por mejorar (a la derecha de la
         # foto, nunca encima: ver comentario de la foto hero) ---
@@ -967,7 +1093,7 @@ def player_report_pdf(
         # nuestros llevan datos reales (mapa de calor, dispersión de tiros)
         # que a ese tamaño se leían mal — "los mapas se ven enanos", visto
         # en un informe real. El hueco de sobra sale de encoger un poco la
-        # fila de abajo (con balón/sin balón/mejores destinos).
+        # fila de abajo (con balón/sin balón/perfil táctico).
         n = len(mapas)
         x0, gap = 0.055, 0.012
         w = (0.89 - gap * (n - 1)) / n
@@ -1004,13 +1130,22 @@ def player_report_pdf(
                 ("Pases progresivos/90", "prog_passes_p90"),
                 ("Conducciones prog./90", "prog_carries_p90"),
                 ("Regates/90", "dribbles_cmp_p90"),
+                ("Pases clave/90", "key_passes_p90"),
+                ("Asistencias/90", "assists_p90"),
+                ("Toques en área/90", "touches_box_p90"),
             ]
+            # 7, no 8: no hay una octava métrica defensiva ya calculada que
+            # no sea repetir una de las seis de aquí — antes que inventar
+            # una (ej. "duelos aéreos ganados", sin evento verificado en
+            # este proveedor), se deja en 7.
             sin_balon = [
                 ("Presiones/90", "pressures_p90"),
                 ("Recuperaciones/90", "recoveries_p90"),
                 ("Entradas/90", "tackles_p90"),
                 ("Intercepciones/90", "interceptions_p90"),
                 ("Entradas+Int. PAdj/90", "padj_tack_int_p90"),
+                ("Bloqueos/90", "blocks_p90"),
+                ("Despejes/90", "clearances_p90"),
             ]
 
         def _stat_panel(x: float, w_: float, titulo: str, filas: list[tuple[str, str]]) -> None:
@@ -1034,18 +1169,67 @@ def player_report_pdf(
                 ax.add_patch(Rectangle((0.52, y - 0.018), 0.26 * pct / 100, 0.032, fc=_ACCENT, ec="none"))
                 _t(ax, 0.95, y, _fmt_metric_value(prow, raw_col), 5.2, _TEXT, "bold", ha="right")
 
-        _stat_panel(0.055, 0.28, "CON BALÓN", con_balon)
-        _stat_panel(0.345, 0.28, "SIN BALÓN", sin_balon)
+        # 4 columnas (antes 3, sin "Impacto ofensivo"): mismo x0/ancho total
+        # que la fila de mapas (0.055 a 0.945), repartido en 4 con el mismo
+        # hueco entre columnas (0.012) que ya usa esa fila.
+        col_w = (0.89 - 0.012 * 3) / 4
+        c1, c2, c3, c4 = (0.055 + i * (col_w + 0.012) for i in range(4))
 
-        ax_td = _panel_ax(fig1, 0.635, 0.065, 0.31, 0.105)
-        _t(ax_td, 0.05, 0.88, "MEJORES DESTINOS", 6.5, _ACCENT, "bold")
-        if destinos.empty:
-            _t(ax_td, 0.05, 0.6, "sin datos suficientes", 5.6, _MUTED)
-        else:
-            for j, (_, d) in enumerate(destinos.head(3).iterrows()):
-                y = 0.66 - j * 0.24
-                _t(ax_td, 0.05, y, _truncate(str(d["team"]), 24), 5.6, _MUTED)
-                _t(ax_td, 0.95, y, f"{d['encaje']:.0f}", 5.6, _TEXT, "bold", ha="right")
+        _stat_panel(c1, col_w, "CON BALÓN", con_balon)
+        _stat_panel(c2, col_w, "SIN BALÓN", sin_balon)
+
+        # --- Impacto ofensivo: 6 insignias circulares con métricas por 90
+        # ya calculadas (mismas fuentes que DATOS CLAVE/CON BALÓN, ningún
+        # dato nuevo) — mismo lenguaje visual que PERCENTIL MEDIO (círculo
+        # + número dentro) en miniatura.
+        ax_ai = _panel_ax(fig1, c3, 0.065, col_w, 0.105)
+        _t(ax_ai, 0.05, 0.88, "IMPACTO OFENSIVO", 6.5, _TEXT, "bold")
+        ai_y_scale = (col_w * PAGE_SIZE[0]) / (0.105 * PAGE_SIZE[1])
+        ai_metrics = [
+            ("xG", "npxg_p90"),
+            ("xA", "xa_p90"),
+            ("P. clave", "key_passes_p90"),
+            ("Tiros", "shots_p90"),
+            ("T. área", "touches_box_p90"),
+            ("Regates", "dribbles_cmp_p90"),
+        ]
+        ai_pos = [(0.2, 0.58), (0.5, 0.58), (0.8, 0.58), (0.2, 0.2), (0.5, 0.2), (0.8, 0.2)]
+        r_badge = 0.09
+        for (etiqueta, raw_col), (cx, cy) in zip(ai_metrics, ai_pos, strict=True):
+            valor_raw = prow.get(raw_col)
+            valor_num = float(valor_raw) if pd.notna(valor_raw) else 0.0
+            ax_ai.add_patch(
+                Ellipse(
+                    (cx, cy),
+                    r_badge * 2,
+                    r_badge * 2 * ai_y_scale,
+                    fill=False,
+                    ec=_ACCENT,
+                    lw=1.2,
+                    transform=ax_ai.transAxes,
+                )
+            )
+            _t(ax_ai, cx, cy + 0.012, f"{valor_num:.2f}", 6.0, _TEXT, "bold", ha="center")
+            _t(ax_ai, cx, cy - r_badge * ai_y_scale - 0.05, etiqueta, 4.6, _MUTED, "bold", ha="center")
+
+        # "Mejores destinos" sigue completo en la página 2 (motor de
+        # encaje): este panel de la página 1 era solo un adelanto, y en la
+        # referencia ese hueco es un "Perfil táctico" — reglas
+        # deterministas sobre la posición media y el % de pase reales del
+        # jugador (_perfil_tactico), no texto generado.
+        ax_td = _panel_ax(fig1, c4, 0.065, col_w, 0.105)
+        _t(ax_td, 0.05, 0.88, "PERFIL TÁCTICO", 6.5, _ACCENT, "bold")
+        rol_compacto = rol if isinstance(rol, str) and rol else str(group)
+        pass_pct_val = prow.get("pass_pct")
+        pass_pct_val = float(pass_pct_val) if pd.notna(pass_pct_val) else None
+        # etiqueta encima, valor debajo (no en la misma línea): la columna
+        # es más estrecha que antes (4 columnas, no 3) y los valores de
+        # este panel son texto ("Tercio de ataque"), no números cortos
+        # como en CON BALÓN/SIN BALÓN — en la misma línea se pegaban.
+        for j, (etiqueta, valor) in enumerate(_perfil_tactico(events, player, rol_compacto, pass_pct_val)):
+            y = 0.74 - j * 0.15
+            _t(ax_td, 0.05, y, etiqueta, 5.0, _MUTED)
+            _t(ax_td, 0.05, y - 0.075, valor, 6.2, _TEXT, "bold")
 
         # --- Pie de página ---
         ax_foot = fig1.add_axes((0.055, 0.025, 0.89, 0.025))

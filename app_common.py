@@ -128,6 +128,18 @@ def crest_of(team: str) -> str | None:
 
 
 @st.cache_data(show_spinner=False, ttl=3600)
+def bio_of(display_name: str) -> dict | None:
+    """Biografía (edad/nacionalidad/altura) del informe de jugador, vía
+    TheSportsDB — mismo servicio que ya usa el Buscador. Sin match o con
+    el servicio caído no hay ficha: el informe lo enseña como "—"."""
+    try:
+        fichas = tsdb.search_players(display_name)
+    except tsdb.ServiceUnavailable:
+        return None
+    return fichas[0] if fichas else None
+
+
+@st.cache_data(show_spinner=False, ttl=3600)
 def buscar_fichas(query: str) -> list[dict]:
     """Fichas externas de TheSportsDB; propaga ServiceUnavailable (no se cachea)."""
     return tsdb.search_players(query)
@@ -216,6 +228,7 @@ def informe_pdf(
         comp_label,
         photo_url=photo_of(display),
         crest_url=crest_of(str(prow["team"])),
+        bio=bio_of(display),
     )
 
 

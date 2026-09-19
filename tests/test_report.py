@@ -1,6 +1,7 @@
 """Test de humo del informe-CV en PDF, con datos sintéticos (sin red)."""
 
 import io
+from datetime import timedelta
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -203,6 +204,84 @@ def test_player_report_pdf_portero_usa_metricas_propias():
     # describe igual que un portero.
     pdf = report.player_report_pdf(tabla_portero(), eventos_portero(), "Portero Test", "Competición Test")
     assert pdf[:5] == b"%PDF-"
+
+
+@pytest.mark.parametrize(
+    ("fecha", "esperado"),
+    [
+        (None, "—"),
+        ("", "—"),
+        ("no-es-una-fecha", "—"),
+        (42, "—"),
+    ],
+)
+def test_edad_desde_fecha_sin_dato_valido_da_guion(fecha, esperado):
+    assert report._edad_desde_fecha(fecha) == esperado
+
+
+def test_edad_desde_fecha_calcula_edad_real():
+    hoy = report.date.today()
+    hace_20_anios = hoy.replace(year=hoy.year - 20)
+    assert report._edad_desde_fecha(hace_20_anios.isoformat()) == "20"
+
+
+def test_edad_desde_fecha_sin_cumplir_anios_todavia_este_anio():
+    # nacido un día después de hoy, hace 20 años: no cumple hasta mañana,
+    # así que hoy sigue teniendo 19 — no basta con restar los años.
+    hoy = report.date.today()
+    manana = hoy + timedelta(days=1)
+    manana_hace_20_anios = manana.replace(year=manana.year - 20)
+    assert report._edad_desde_fecha(manana_hace_20_anios.isoformat()) == "19"
+
+
+def test_player_report_pdf_con_bio_muestra_edad_nacionalidad_altura():
+    bio = {"nacionalidad": "Argentina", "nacimiento": "2000-06-24", "altura": "170 cm"}
+    pdf = report.player_report_pdf(tabla(), eventos(), "Jugadora Test", "Competición Test", bio=bio)
+    assert pdf[:5] == b"%PDF-"
+
+
+def test_player_report_pdf_sin_bio_no_revienta():
+    # sin ficha de TheSportsDB (no encontrado o servicio caído): "—" en
+    # cada campo, nunca un dato inventado.
+    pdf = report.player_report_pdf(tabla(), eventos(), "Jugadora Test", "Competición Test", bio=None)
+    assert pdf[:5] == b"%PDF-"
+
+
+def _eventos_en(x: float, y: float, n: int = 3) -> pd.DataFrame:
+    filas = [
+        {"match_id": 1, "period": 1, "team": "X", "player": "J", "type": "Pass", "location": [x, y]}
+        for _ in range(n)
+    ]
+    return pd.DataFrame(filas)
+
+
+def test_touch_stats_centroide_y_dispersion():
+    cx, cy, std_x, std_y = report._touch_stats(_eventos_en(100.0, 70.0), "J")
+    assert (cx, cy, std_x, std_y) == pytest.approx((100.0, 70.0, 0.0, 0.0))
+
+
+def test_touch_stats_sin_toques_da_none():
+    sin_toques = pd.DataFrame(columns=["match_id", "period", "team", "player", "type", "location"])
+    assert report._touch_stats(sin_toques, "Nadie") is None
+
+
+def test_perfil_tactico_deriva_tercio_banda_y_asociativo_de_datos_reales():
+    # tiro en x=110 (tercio de ataque), y=70 (banda derecha: > 53.33) — sin
+    # etiqueta puesta a mano, del centroide real de sus toques.
+    filas = dict(report._perfil_tactico(_eventos_en(110.0, 70.0, n=1), "J", "Extremo", 90.0))
+    assert filas["Posición principal"] == "Extremo"
+    assert filas["Altura recepción"] == "Tercio de ataque"
+    assert filas["Ocupación"] == "Banda derecha"
+    assert filas["Juego asociativo"] == "Alto"
+
+
+def test_perfil_tactico_sin_toques_da_guiones_no_datos_inventados():
+    sin_toques = pd.DataFrame(columns=["match_id", "period", "team", "player", "type", "location"])
+    filas = dict(report._perfil_tactico(sin_toques, "Nadie", "MF", None))
+    assert filas["Altura recepción"] == "—"
+    assert filas["Ocupación"] == "—"
+    assert filas["Movimiento"] == "—"
+    assert filas["Juego asociativo"] == "—"
 
 
 def test_player_report_pdf_incrusta_foto_si_hay_url(monkeypatch):

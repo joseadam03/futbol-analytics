@@ -18,7 +18,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from futbol_analytics import crests, metrics, photos, report, similarity, viz
+from futbol_analytics import crests, metrics, photos, report, similarity, tsdb, viz
 from futbol_analytics.providers import get_provider
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -95,8 +95,20 @@ def main() -> None:
 
     foto_url = photos.photo_url(display)
     escudo_url = crests.crest_url(str(prow["team"]))
+    try:
+        fichas_bio = tsdb.search_players(display)
+    except tsdb.ServiceUnavailable:
+        fichas_bio = []
+    bio = fichas_bio[0] if fichas_bio else None
     pdf = report.player_report_pdf(
-        table, events, player, comp_label, display=display, photo_url=foto_url, crest_url=escudo_url
+        table,
+        events,
+        player,
+        comp_label,
+        display=display,
+        photo_url=foto_url,
+        crest_url=escudo_url,
+        bio=bio,
     )
     (out_dir / "informe.pdf").write_bytes(pdf)
     print("Informe-CV de una página: informe.pdf")
