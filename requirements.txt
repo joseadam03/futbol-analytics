@@ -238,7 +238,7 @@ streamlit==1.63.0
     #   streamlit-authenticator
 streamlit-authenticator==0.4.2
     # via futbol-analytics
-threadpoolctl==3.6.0
+threadpoolctl==3.7.0
     # via scikit-learn
 toml==0.10.2
     # via streamlit
