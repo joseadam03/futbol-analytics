@@ -265,6 +265,24 @@ def test_touch_stats_sin_toques_da_none():
     assert report._touch_stats(sin_toques, "Nadie") is None
 
 
+@pytest.mark.parametrize(
+    "tipo", ["equipo", "competicion", "minutos", "grupo", "edad", "nacionalidad", "altura", "pie"]
+)
+def test_icono_info_no_se_recorta_contra_el_eje(tipo):
+    # x=0.025 (el real: pegado al borde izquierdo del eje para dejar sitio
+    # a la etiqueta al lado) deja media figura en x<0 — sin clip_on=False
+    # el recorte por defecto de matplotlib se la comía (visto en un
+    # informe real: el escudo salía como un ")", la copa sin una de las
+    # dos asas). Regresión: cualquier forma nueva que se le añada a
+    # _icono_info debe declarar clip_on=False, o este test la pilla.
+    fig, ax = plt.subplots()
+    report._icono_info(ax, 0.025, 0.5, tipo, "#8FA3A4", 1.0)
+    artistas = list(ax.patches) + list(ax.lines)
+    assert artistas, f"{tipo} no dibujó nada"
+    assert all(not a.get_clip_on() for a in artistas)
+    plt.close(fig)
+
+
 def test_perfil_tactico_deriva_tercio_banda_y_asociativo_de_datos_reales():
     # tiro en x=110 (tercio de ataque), y=70 (banda derecha: > 53.33) — sin
     # etiqueta puesta a mano, del centroide real de sus toques.

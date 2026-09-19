@@ -314,9 +314,18 @@ def _icono_info(ax, x: float, y: float, tipo: str, color: str, y_scale: float) -
     garabatos en vez de formas reconocibles. Con Ellipse y un desplazamiento
     de puntos escalado en y por este factor, el icono sale visualmente
     proporcionado pese a la caja rectangular del eje.
+
+    `clip_on=False` en todo (patches y líneas): con `x` tan cerca del borde
+    izquierdo del eje (0.025) como para dejar sitio a la etiqueta al lado,
+    la mitad izquierda de cada icono cae en x<0 — con el recorte por
+    defecto de matplotlib eso se cortaba, dejando un garabato en vez del
+    icono entero (visto en un informe real: el escudo salía como un
+    ")", la copa sin una de las dos asas). Mismo motivo que el
+    `clip_on=False` de la barrita de acento de la cabecera.
     """
     lw = 1.1
-    kwargs = {"fill": False, "ec": color, "lw": lw, "transform": ax.transAxes}
+    kwargs = {"fill": False, "ec": color, "lw": lw, "transform": ax.transAxes, "clip_on": False}
+    line_kwargs = {"color": color, "lw": lw, "transform": ax.transAxes, "clip_on": False}
 
     def ys(dy: float) -> float:
         return y + dy * y_scale
@@ -341,15 +350,15 @@ def _icono_info(ax, x: float, y: float, tipo: str, color: str, y_scale: float) -
             (x - 0.014, ys(-0.03)),
         ]
         ax.add_patch(Polygon(copa, closed=True, **kwargs))
-        arc_kwargs = {"ec": color, "lw": lw, "transform": ax.transAxes}
+        arc_kwargs = {"ec": color, "lw": lw, "transform": ax.transAxes, "clip_on": False}
         ax.add_patch(Arc((x - 0.026, ys(0.03)), 0.022, 0.022 * y_scale, theta1=90, theta2=270, **arc_kwargs))
         ax.add_patch(Arc((x + 0.026, ys(0.03)), 0.022, 0.022 * y_scale, theta1=270, theta2=90, **arc_kwargs))
-        ax.plot([x, x], [ys(-0.03), ys(-0.07)], color=color, lw=lw, transform=ax.transAxes)
-        ax.plot([x - 0.016, x + 0.016], [ys(-0.07), ys(-0.07)], color=color, lw=lw, transform=ax.transAxes)
+        ax.plot([x, x], [ys(-0.03), ys(-0.07)], **line_kwargs)
+        ax.plot([x - 0.016, x + 0.016], [ys(-0.07), ys(-0.07)], **line_kwargs)
     elif tipo == "minutos":
         ax.add_patch(Ellipse((x, y), 0.08, 0.08 * y_scale, **kwargs))
-        ax.plot([x, x], [y, ys(0.042)], color=color, lw=lw, transform=ax.transAxes)
-        ax.plot([x, x + 0.02], [y, y], color=color, lw=lw, transform=ax.transAxes)
+        ax.plot([x, x], [y, ys(0.042)], **line_kwargs)
+        ax.plot([x, x + 0.02], [y, y], **line_kwargs)
     elif tipo == "grupo":
         ax.add_patch(Ellipse((x - 0.016, y), 0.056, 0.056 * y_scale, **kwargs))
         ax.add_patch(Ellipse((x + 0.016, y), 0.056, 0.056 * y_scale, **kwargs))
@@ -357,23 +366,21 @@ def _icono_info(ax, x: float, y: float, tipo: str, color: str, y_scale: float) -
         # calendario: rectángulo + línea de cabecera + dos anillas
         w, h = 0.08, 0.075
         ax.add_patch(Rectangle((x - w / 2, ys(-h / 2)), w, h * y_scale, **kwargs))
-        ax.plot([x - w / 2, x + w / 2], [ys(h / 2 - 0.02)] * 2, color=color, lw=lw, transform=ax.transAxes)
+        ax.plot([x - w / 2, x + w / 2], [ys(h / 2 - 0.02)] * 2, **line_kwargs)
         for dx in (-w * 0.28, w * 0.28):
-            ax.plot(
-                [x + dx, x + dx], [ys(h / 2), ys(h / 2 + 0.02)], color=color, lw=lw, transform=ax.transAxes
-            )
+            ax.plot([x + dx, x + dx], [ys(h / 2), ys(h / 2 + 0.02)], **line_kwargs)
     elif tipo == "nacionalidad":
         # bandera genérica en un mástil: no hay banderas reales de países
         # dibujadas (harían falta activos verificados por país, fuera de
         # alcance), solo el icono del campo "nacionalidad".
-        ax.plot([x - 0.04, x - 0.04], [ys(-0.06), ys(0.09)], color=color, lw=lw, transform=ax.transAxes)
+        ax.plot([x - 0.04, x - 0.04], [ys(-0.06), ys(0.09)], **line_kwargs)
         bandera = [(x - 0.04, ys(0.09)), (x + 0.05, ys(0.055)), (x - 0.04, ys(0.02))]
         ax.add_patch(Polygon(bandera, closed=True, **kwargs))
     elif tipo == "altura":
         # flecha vertical con topes, como una medida de altura
-        ax.plot([x, x], [ys(-0.08), ys(0.09)], color=color, lw=lw, transform=ax.transAxes)
+        ax.plot([x, x], [ys(-0.08), ys(0.09)], **line_kwargs)
         for yy in (ys(0.09), ys(-0.08)):
-            ax.plot([x - 0.025, x + 0.025], [yy, yy], color=color, lw=lw, transform=ax.transAxes)
+            ax.plot([x - 0.025, x + 0.025], [yy, yy], **line_kwargs)
     elif tipo == "pie":
         ax.add_patch(Ellipse((x, ys(-0.02)), 0.05, 0.08 * y_scale, **kwargs))
         ax.add_patch(Ellipse((x + 0.015, ys(0.05)), 0.035, 0.035 * y_scale, **kwargs))
