@@ -600,15 +600,14 @@ def player_report_pdf(
         fig1 = plt.figure(figsize=PAGE_SIZE)
         fig1.set_facecolor(_BG)
 
-        # --- Foto hero: retrato, recorte cover-fit exacto a la caja real
-        # (no al 900/1200 fijo de la referencia, que no siempre coincide
-        # con el aspect ratio físico de esta caja en concreto). A la derecha
-        # del panel de perfil, sin solaparlo (la referencia sí los solapa,
-        # pero ahí la foto es una toma editorial con espacio en blanco
-        # pensado para eso; una foto de agencia real como las que da
-        # TheSportsDB no lo tiene, y el panel opaco encima se comía la
-        # mayor parte de la imagen — visto en un informe real).
-        photo_x0, photo_y0, photo_w, photo_h = 0.67, 0.52, 0.275, 0.43
+        # --- Foto hero: en el centro (datos a la izquierda, perfil a la
+        # derecha — orden explícito de Jose), grande y protagonista como en
+        # la referencia, pero sin solapar con el panel de perfil (la
+        # referencia sí los solapa, pero ahí la foto es una toma editorial
+        # con espacio en blanco pensado para eso; una foto de agencia real
+        # como las que da TheSportsDB no lo tiene, y el panel opaco encima
+        # se comía la mayor parte de la imagen — visto en un informe real).
+        photo_x0, photo_y0, photo_w, photo_h = 0.325, 0.52, 0.36, 0.43
         ax_photo = fig1.add_axes((photo_x0, photo_y0, photo_w, photo_h))
         ax_photo.axis("off")
         photo_src = _fetch_image(photo_url)
@@ -651,13 +650,13 @@ def player_report_pdf(
             _t(ax_info, 0, yy - 0.07, v, 8, _TEXT, "bold")
             yy -= 0.135
 
-        # --- Perfil + puntos fuertes + por mejorar (panel junto a la foto,
-        # nunca encima: ver comentario de la foto hero) ---
-        ax_prof = _panel_ax(fig1, 0.33, 0.52, 0.32, 0.30)
+        # --- Perfil + puntos fuertes + por mejorar (a la derecha de la
+        # foto, nunca encima: ver comentario de la foto hero) ---
+        ax_prof = _panel_ax(fig1, 0.705, 0.52, 0.24, 0.30)
         _t(ax_prof, 0.06, 0.93, "PERFIL", 7, _ACCENT, "bold")
         n_lineas = 0
         if resumen:
-            lineas = textwrap.wrap(resumen, width=47)
+            lineas = textwrap.wrap(resumen, width=35)
             n_lineas = len(lineas)
             for i, linea in enumerate(lineas):
                 _t(ax_prof, 0.06, 0.83 - i * 0.075, linea, 7, _MUTED)
@@ -671,7 +670,7 @@ def player_report_pdf(
                 _t(ax_prof, 0.115, y, t, 7, _TEXT)
                 y -= 0.05
                 if d:
-                    _t(ax_prof, 0.115, y, _truncate(d, 51), 5.8, _MUTED)
+                    _t(ax_prof, 0.115, y, _truncate(d, 38), 5.8, _MUTED)
                     y -= 0.05
             return y
 
