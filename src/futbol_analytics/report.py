@@ -281,7 +281,8 @@ def _panel_radar_polar(ax, labels: list[str], values: list[float]) -> None:
     ax.set_yticks([20, 40, 60, 80, 100])
     ax.set_yticklabels([])
     ax.set_xticks(angles)
-    ax.set_xticklabels(labels, fontsize=5.5, color=_MUTED)
+    ax.set_xticklabels(labels, fontsize=4.6, color=_MUTED)
+    ax.tick_params(axis="x", pad=1.5)
     ax.grid(color=_GRID, lw=0.6)
     ax.plot(angles_closed, values_closed, color=_ACCENT, lw=1.7)
     ax.fill(angles_closed, values_closed, color=_ACCENT, alpha=0.16)
@@ -660,10 +661,13 @@ def player_report_pdf(
             pct = float(prow[col]) if pd.notna(prow.get(col)) else 0.0
             _t(ax_data, 0.04, yy, label.replace("\n", " "), 5.5, _MUTED)
             _t(ax_data, 0.42, yy, valor, 6.2, _TEXT, "bold")
+            # barra más corta que el hueco hasta el borde del panel (no hasta
+            # 0.88 como antes): con percentil 100 el número quedaba encima
+            # del final de la barra, visto en un informe real.
             ax_data.add_patch(
                 FancyBboxPatch(
                     (0.57, yy - 0.025),
-                    0.31,
+                    0.26,
                     0.035,
                     boxstyle="round,pad=0.002,rounding_size=.01",
                     fc=_GRID,
@@ -673,40 +677,63 @@ def player_report_pdf(
             ax_data.add_patch(
                 FancyBboxPatch(
                     (0.57, yy - 0.025),
-                    0.31 * pct / 100,
+                    0.26 * pct / 100,
                     0.035,
                     boxstyle="round,pad=0.002,rounding_size=.01",
                     fc=_ACCENT,
                     ec="none",
                 )
             )
-            _t(ax_data, 0.90, yy, f"{pct:.0f}", 5.5, _ACCENT, "bold", ha="right")
+            _t(ax_data, 0.97, yy, f"{pct:.0f}", 5.5, _ACCENT, "bold", ha="right")
             yy -= 0.115
 
         full_metrics = viz.RADAR_METRICS.get(group, viz.RADAR_METRICS["MF"])
-        # abreviado solo para las etiquetas angulares del radar (muy poco
-        # sitio alrededor de un radar pequeño) — viz.RADAR_METRICS conserva
-        # las etiquetas completas para el resto de la app.
+        # abreviado solo para las etiquetas angulares del radar: la caja es
+        # estrecha (comparte fila con "datos clave" y "percentil medio") y
+        # con el nombre completo la etiqueta se salía de su propio hueco e
+        # invadía el panel vecino — el de la derecha además la tapaba a
+        # media palabra, por dibujarse encima en el orden de capas (visto
+        # en un informe real). Por nombre completo, no por palabra suelta:
+        # más predecible que sustituir palabra a palabra. El nombre entero
+        # ya está en la tabla "DATOS CLAVE" de al lado, así que aquí basta
+        # con que se reconozca de un vistazo. viz.RADAR_METRICS conserva las
+        # etiquetas completas para el resto de la app.
         _RADAR_ABBR = {
-            "Entradas+Int.": "Ent+Int",
-            "(PAdj)": "PAdj",
-            "progresivos": "prog.",
-            "progresivas": "prog.",
-            "Recuperaciones": "Recup.",
-            "Toques en área": "Toques área",
+            "npxG": "npxG",
+            "Tiros": "Tiros",
+            "xA": "xA",
+            "Pases clave": "Clave",
+            "Regates": "Regate",
+            "Toques en área": "T.área",
+            "Conducciones progresivas": "Cond.",
+            "Pases progresivos": "P.prog",
+            "Presiones": "Pres.",
+            "Entradas+Int. (PAdj)": "E+Int",
+            "Recuperaciones": "Recup",
+            "Bloqueos": "Bloq.",
+            "Despejes": "Desp.",
         }
 
         def _abbr(label: str) -> str:
-            palabras = label.replace("\n", " ").split()
-            return " ".join(_RADAR_ABBR.get(p, p) for p in palabras)
+            limpio = label.replace("\n", " ")
+            return _RADAR_ABBR.get(limpio, limpio[:6])
 
         radar_labels = [_abbr(lab) for _, lab in full_metrics]
         radar_values = [float(prow[c]) if pd.notna(prow.get(c)) else 0.0 for c, _ in full_metrics]
         avg_percentile = float(np.mean(radar_values)) if radar_values else 0.0
 
-        ax_radar = fig1.add_axes((0.49, 0.315, 0.23, 0.18), projection="polar")
+        # más bajo que datos clave/percentil medio (0.18): con esa altura,
+        # incluso ya abreviadas, las etiquetas angulares más largas invadían
+        # los paneles vecinos por los lados — a la derecha además tapadas a
+        # media palabra, por quedar el panel de percentil medio encima en el
+        # orden de capas (visto en un informe real). La altura, no el ancho,
+        # es lo que fija el tamaño real del círculo+etiquetas en un polar de
+        # matplotlib, así que bajarla es lo único que de verdad encoge todo
+        # el conjunto y libera hueco lateral; medido con el renderer para
+        # las 4 combinaciones de métricas (FW/MF/DF/GK), no a ojo.
+        ax_radar = fig1.add_axes((0.49, 0.3375, 0.23, 0.135), projection="polar")
         _panel_radar_polar(ax_radar, radar_labels, radar_values)
-        _t(ax_radar, 0.5, 1.165, "RADAR", 7, _TEXT, "bold", ha="center")
+        _t(ax_radar, 0.5, 1.24, "RADAR", 7, _TEXT, "bold", ha="center")
 
         ax_rating = _panel_ax(fig1, 0.74, 0.315, 0.205, 0.18)
         _t(ax_rating, 0.08, 0.91, "PERCENTIL MEDIO", 6.5, _TEXT, "bold")
