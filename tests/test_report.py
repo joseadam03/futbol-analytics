@@ -27,6 +27,30 @@ def test_photo_box_compone_recorte_transparente_sobre_el_panel_no_negro():
     assert esquina == report._hex_to_rgb(report._PANEL)
 
 
+def test_es_recorte_transparente_distingue_recorte_de_foto_opaca():
+    # un recorte real de jugador (TheSportsDB): mitad transparente, mitad
+    # opaca de sobra para superar el umbral del 2%.
+    recorte = Image.new("RGBA", (20, 20), (0, 0, 0, 0))
+    recorte.paste(Image.new("RGBA", (20, 10), (200, 150, 100, 255)), (0, 0))
+    assert report._es_recorte_transparente(recorte)
+
+    # una foto de agencia normal, aunque venga en modo RGBA, es opaca de
+    # borde a borde (como la de Aaron Mooy) — no debe tratarse como recorte.
+    opaca = Image.new("RGBA", (20, 20), (10, 10, 10, 255))
+    assert not report._es_recorte_transparente(opaca)
+
+    assert not report._es_recorte_transparente(Image.new("RGB", (20, 20), (10, 10, 10)))
+    assert not report._es_recorte_transparente(None)
+
+
+def _png_transparente(width: int, height: int) -> bytes:
+    buf = io.BytesIO()
+    img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    img.paste(Image.new("RGBA", (width, height // 2), (200, 150, 100, 255)), (0, 0))
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
 def eventos() -> pd.DataFrame:
     def ev(team, player, type_, x=60.0, end=None, **kw):
         base = {
@@ -107,6 +131,17 @@ def test_player_report_pdf_incrusta_foto_si_hay_url(monkeypatch):
     monkeypatch.setattr(report.photos, "fetch_bytes", lambda url: _png_bytes())
     pdf = report.player_report_pdf(
         tabla(), eventos(), "Jugadora Test", "Competición Test", photo_url="https://img/x.png"
+    )
+    assert pdf[:5] == b"%PDF-"
+
+
+def test_player_report_pdf_con_recorte_transparente_no_revienta(monkeypatch):
+    # pedido explícito de Jose: sin la caja rectangular de antes, un recorte
+    # real (fondo transparente) se dibuja tal cual, directamente sobre el
+    # fondo de la página — rama de código separada de la foto opaca normal.
+    monkeypatch.setattr(report.photos, "fetch_bytes", lambda url: _png_transparente(40, 60))
+    pdf = report.player_report_pdf(
+        tabla(), eventos(), "Jugadora Test", "Competición Test", photo_url="https://img/recorte.png"
     )
     assert pdf[:5] == b"%PDF-"
 

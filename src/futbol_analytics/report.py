@@ -129,6 +129,23 @@ def _fetch_image(url: str | None) -> Image.Image | None:
         return None
 
 
+def _es_recorte_transparente(img: Image.Image | None) -> bool:
+    """True si la imagen trae canal alfa con transparencia real (no solo
+    técnicamente RGBA pero opaca de borde a borde) — el recorte de jugador
+    de TheSportsDB, a diferencia de una foto de agencia normal con fondo
+    físico (como la de Aaron Mooy, JPG opaco pese a llevar un nombre de
+    fichero parecido). Un 2% de píxeles con alfa por debajo de 250 basta
+    para distinguir un recorte real de una imagen opaca con canal alfa
+    accidental.
+    """
+    if img is None:
+        return False
+    if img.mode not in ("RGBA", "LA") and not (img.mode == "P" and "transparency" in img.info):
+        return False
+    alpha = np.asarray(img.convert("RGBA"))[:, :, 3]
+    return bool((alpha < 250).mean() > 0.02)
+
+
 def _photo_box(
     img: Image.Image | None, aspect_w: float, aspect_h: float, fade_frac: float = 0.55
 ) -> Image.Image:
@@ -594,16 +611,28 @@ def player_report_pdf(
         photo_x0, photo_y0, photo_w, photo_h = 0.67, 0.52, 0.275, 0.43
         ax_photo = fig1.add_axes((photo_x0, photo_y0, photo_w, photo_h))
         ax_photo.axis("off")
-        photo_img = _photo_box(
-            _fetch_image(photo_url), photo_w * PAGE_SIZE[0], photo_h * PAGE_SIZE[1], fade_frac=0.0
-        )
-        ax_photo.imshow(photo_img, interpolation="lanczos")
+        photo_src = _fetch_image(photo_url)
+        if _es_recorte_transparente(photo_src):
+            # recorte real (fondo transparente): se planta tal cual, sin
+            # recortar ni rellenar de un color de fondo — sin la caja
+            # rectangular de antes, el jugador flota directamente sobre el
+            # fondo oscuro de la página (pedido explícito de Jose: "quita
+            # el fondo"). matplotlib encoge la caja al aspect ratio real de
+            # la imagen (ax.set_facecolor("none") dentro de una figura ya
+            # oscura, sin recorte de por medio) en vez de forzar el aspect
+            # ratio apaisado de la caja original, pensado para fotos con
+            # fondo real que si hay que recortar.
+            assert photo_src is not None  # _es_recorte_transparente ya descarta None
+            ax_photo.set_facecolor("none")
+            ax_photo.imshow(np.asarray(photo_src.convert("RGBA")), interpolation="lanczos")
+        else:
+            photo_img = _photo_box(photo_src, photo_w * PAGE_SIZE[0], photo_h * PAGE_SIZE[1], fade_frac=0.0)
+            ax_photo.imshow(photo_img, interpolation="lanczos")
 
         # --- Cabecera: nombre + posición ---
         ax_h = fig1.add_axes((0.055, 0.89, 0.9, 0.07))
         ax_h.axis("off")
         _t(ax_h, 0, 0.80, "INFORME DE JUGADOR", 7, _MUTED, "bold")
-        _t(ax_h, 0.54, 0.80, "SCOUTING · ANÁLISIS · RENDIMIENTO", 6, _MUTED)
         _t(ax_h, 0, 0.05, _truncate(display, 20), 30, _TEXT, "bold")
         _t(ax_h, 0, -0.42, posicion.upper(), 10, _ACCENT, "bold")
 
