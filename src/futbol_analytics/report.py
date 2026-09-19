@@ -45,7 +45,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.backends.backend_pdf import PdfPages
-from matplotlib.patches import Arc, Circle, Ellipse, FancyBboxPatch, Polygon, Rectangle
+from matplotlib.patches import Circle, Ellipse, FancyBboxPatch, Rectangle
 from mplsoccer import Pitch, VerticalPitch
 from PIL import Image
 from scipy.ndimage import gaussian_filter
@@ -298,94 +298,6 @@ def _fit_name_lines(
     return lineas, size
 
 
-def _icono_info(ax, x: float, y: float, tipo: str, color: str, y_scale: float) -> None:
-    """Icono lineal diminuto junto a cada fila de la columna de datos —
-    mismo lenguaje visual que la referencia (un icono por dato: equipo,
-    competición, minutos, comparado con). Dibujado con formas de
-    matplotlib, no con un glifo de emoji: al incrustar en PDF con una
-    fuente propia (Inter) no hay garantía de soporte de emoji a color,
-    así que un icono de verdad (líneas/patches) es lo único fiable aquí.
-    Centrado en (x, y) en coordenadas del propio eje (transAxes).
-
-    `y_scale` (ancho físico del eje / alto físico del eje) es necesario
-    porque este eje no es cuadrado en pulgadas: un "Circle" (radio igual
-    en x e y en coordenadas de datos/ejes) sale ovalado sin corregirlo —
-    visto al renderizar un primer intento de estos iconos, parecían
-    garabatos en vez de formas reconocibles. Con Ellipse y un desplazamiento
-    de puntos escalado en y por este factor, el icono sale visualmente
-    proporcionado pese a la caja rectangular del eje.
-
-    `clip_on=False` en todo (patches y líneas): con `x` tan cerca del borde
-    izquierdo del eje (0.025) como para dejar sitio a la etiqueta al lado,
-    la mitad izquierda de cada icono cae en x<0 — con el recorte por
-    defecto de matplotlib eso se cortaba, dejando un garabato en vez del
-    icono entero (visto en un informe real: el escudo salía como un
-    ")", la copa sin una de las dos asas). Mismo motivo que el
-    `clip_on=False` de la barrita de acento de la cabecera.
-    """
-    lw = 1.1
-    kwargs = {"fill": False, "ec": color, "lw": lw, "transform": ax.transAxes, "clip_on": False}
-    line_kwargs = {"color": color, "lw": lw, "transform": ax.transAxes, "clip_on": False}
-
-    def ys(dy: float) -> float:
-        return y + dy * y_scale
-
-    if tipo == "equipo":
-        pts = [
-            (x, ys(0.09)),
-            (x + 0.042, ys(0.045)),
-            (x + 0.042, ys(-0.045)),
-            (x, ys(-0.105)),
-            (x - 0.042, ys(-0.045)),
-            (x - 0.042, ys(0.045)),
-        ]
-        ax.add_patch(Polygon(pts, closed=True, **kwargs))
-    elif tipo == "competicion":
-        # copa: cuerpo trapezoidal + dos asas (arcos) + pie, no un círculo
-        # con un palo debajo (leía como una piruleta, no como un trofeo).
-        copa = [
-            (x - 0.026, ys(0.06)),
-            (x + 0.026, ys(0.06)),
-            (x + 0.014, ys(-0.03)),
-            (x - 0.014, ys(-0.03)),
-        ]
-        ax.add_patch(Polygon(copa, closed=True, **kwargs))
-        arc_kwargs = {"ec": color, "lw": lw, "transform": ax.transAxes, "clip_on": False}
-        ax.add_patch(Arc((x - 0.026, ys(0.03)), 0.022, 0.022 * y_scale, theta1=90, theta2=270, **arc_kwargs))
-        ax.add_patch(Arc((x + 0.026, ys(0.03)), 0.022, 0.022 * y_scale, theta1=270, theta2=90, **arc_kwargs))
-        ax.plot([x, x], [ys(-0.03), ys(-0.07)], **line_kwargs)
-        ax.plot([x - 0.016, x + 0.016], [ys(-0.07), ys(-0.07)], **line_kwargs)
-    elif tipo == "minutos":
-        ax.add_patch(Ellipse((x, y), 0.08, 0.08 * y_scale, **kwargs))
-        ax.plot([x, x], [y, ys(0.042)], **line_kwargs)
-        ax.plot([x, x + 0.02], [y, y], **line_kwargs)
-    elif tipo == "grupo":
-        ax.add_patch(Ellipse((x - 0.016, y), 0.056, 0.056 * y_scale, **kwargs))
-        ax.add_patch(Ellipse((x + 0.016, y), 0.056, 0.056 * y_scale, **kwargs))
-    elif tipo == "edad":
-        # calendario: rectángulo + línea de cabecera + dos anillas
-        w, h = 0.08, 0.075
-        ax.add_patch(Rectangle((x - w / 2, ys(-h / 2)), w, h * y_scale, **kwargs))
-        ax.plot([x - w / 2, x + w / 2], [ys(h / 2 - 0.02)] * 2, **line_kwargs)
-        for dx in (-w * 0.28, w * 0.28):
-            ax.plot([x + dx, x + dx], [ys(h / 2), ys(h / 2 + 0.02)], **line_kwargs)
-    elif tipo == "nacionalidad":
-        # bandera genérica en un mástil: no hay banderas reales de países
-        # dibujadas (harían falta activos verificados por país, fuera de
-        # alcance), solo el icono del campo "nacionalidad".
-        ax.plot([x - 0.04, x - 0.04], [ys(-0.06), ys(0.09)], **line_kwargs)
-        bandera = [(x - 0.04, ys(0.09)), (x + 0.05, ys(0.055)), (x - 0.04, ys(0.02))]
-        ax.add_patch(Polygon(bandera, closed=True, **kwargs))
-    elif tipo == "altura":
-        # flecha vertical con topes, como una medida de altura
-        ax.plot([x, x], [ys(-0.08), ys(0.09)], **line_kwargs)
-        for yy in (ys(0.09), ys(-0.08)):
-            ax.plot([x - 0.025, x + 0.025], [yy, yy], **line_kwargs)
-    elif tipo == "pie":
-        ax.add_patch(Ellipse((x, ys(-0.02)), 0.05, 0.08 * y_scale, **kwargs))
-        ax.add_patch(Ellipse((x + 0.015, ys(0.05)), 0.035, 0.035 * y_scale, **kwargs))
-
-
 def _panel_ax(fig, x: float, y: float, w: float, h: float):
     """Panel plano (sin borde ni esquinas redondeadas) — mismo patrón que
     `add_panel` de la referencia: un axes normal con su color de fondo,
@@ -546,8 +458,8 @@ def _panel_position_pitch(events: pd.DataFrame, player: str):
     """Punto de "dónde juega": centroide real de sus toques, no una zona
     puesta a ojo. Se dibuja con `scatter` (marcador circular en puntos de
     pantalla) y no con un `Circle` en coordenadas de datos, precisamente
-    para no arrastrar la distorución de aspect ratio que sí hay que
-    corregir a mano en _icono_info."""
+    para no arrastrar la distorución de aspect ratio de un eje no
+    cuadrado en pulgadas."""
     stats = _touch_stats(events, player)
     pitch, fig, ax = _mini_pitch(figsize=(2.3, 1.55))
     if stats is not None:
@@ -901,12 +813,12 @@ def player_report_pdf(
         # docstring) — "—" en cualquier campo sin dato, nunca inventado.
         bio = bio or {}
         info_rows = [
-            ("edad", "EDAD", _edad_desde_fecha(bio.get("nacimiento"))),
-            ("nacionalidad", "NACIONALIDAD", str(bio.get("nacionalidad") or "—")),
-            ("altura", "ALTURA", str(bio.get("altura") or "—")),
-            ("pie", "PIE PREFERIDO", "—"),
-            ("equipo", "EQUIPO", _truncate(str(prow["team"]), 20)),
-            ("competicion", "COMPETICIÓN", _truncate(comp_label, 20)),
+            ("EDAD", _edad_desde_fecha(bio.get("nacimiento"))),
+            ("NACIONALIDAD", str(bio.get("nacionalidad") or "—")),
+            ("ALTURA", str(bio.get("altura") or "—")),
+            ("PIE PREFERIDO", "—"),
+            ("EQUIPO", _truncate(str(prow["team"]), 20)),
+            ("COMPETICIÓN", _truncate(comp_label, 20)),
         ]
         # 6 filas fijas ahora (antes 4): el hueco disponible es el mismo,
         # entre el borde de la cabecera (0.78) y el borde de DATOS CLAVE
@@ -917,15 +829,14 @@ def player_report_pdf(
         info_h = 0.265
         ax_info = fig1.add_axes((0.055, 0.78 - info_h, 0.25, info_h))
         ax_info.axis("off")
-        # el eje no es cuadrado en pulgadas físicas: sin corregirlo, un
-        # "círculo" de igual radio en x e y sale ovalado.
-        info_y_scale = (0.25 * PAGE_SIZE[0]) / (info_h * PAGE_SIZE[1])
-        paso, icon_dy, valor_dy = 0.155, 0.0227, 0.0803
+        # sin icono junto a cada fila (pedido explícito de Jose: aunque
+        # geométricamente ya salían enteros, un icono lineal diminuto de
+        # 20x20px se lee mal en la mayoría de casos reales).
+        paso, valor_dy = 0.155, 0.0803
         yy = 0.87
-        for icono, k, v in info_rows:
-            _icono_info(ax_info, 0.025, yy - icon_dy, icono, _MUTED, info_y_scale)
-            _t(ax_info, 0.075, yy, k, 5.5, _MUTED, "bold")
-            _t(ax_info, 0.075, yy - valor_dy, v, 8, _TEXT, "bold")
+        for k, v in info_rows:
+            _t(ax_info, 0.02, yy, k, 5.5, _MUTED, "bold")
+            _t(ax_info, 0.02, yy - valor_dy, v, 8, _TEXT, "bold")
             yy -= paso
 
         # --- Perfil + puntos fuertes + por mejorar (a la derecha de la
