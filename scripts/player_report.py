@@ -18,7 +18,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from futbol_analytics import crests, metrics, photos, report, similarity, tsdb, viz
+from futbol_analytics import crests, metrics, photos, report, similarity, sportmonks, tsdb, viz
 from futbol_analytics.providers import get_provider
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -95,11 +95,27 @@ def main() -> None:
 
     foto_url = photos.photo_url(display)
     escudo_url = crests.crest_url(str(prow["team"]))
+    # TheSportsDB primero, Sportmonks para rellenar altura/pie si se
+    # queda corto (no siempre los trae) — misma lógica que
+    # app_common.bio_of, duplicada aquí a propósito en vez de importarla:
+    # este script es la vía sin Streamlit, no debe depender del módulo
+    # de la app.
     try:
         fichas_bio = tsdb.search_players(display)
     except tsdb.ServiceUnavailable:
         fichas_bio = []
-    bio = fichas_bio[0] if fichas_bio else None
+    bio = dict(fichas_bio[0]) if fichas_bio else {}
+    if (not bio.get("altura") or not bio.get("pie")) and sportmonks.available():
+        try:
+            extra = sportmonks.player_bio(display)
+        except sportmonks.ServiceUnavailable:
+            extra = None
+        if extra:
+            if not bio.get("altura") and extra.get("altura"):
+                bio["altura"] = extra["altura"]
+            if not bio.get("pie") and extra.get("pie"):
+                bio["pie"] = extra["pie"]
+    bio_final = bio or None
     pdf = report.player_report_pdf(
         table,
         events,
@@ -108,7 +124,7 @@ def main() -> None:
         display=display,
         photo_url=foto_url,
         crest_url=escudo_url,
-        bio=bio,
+        bio=bio_final,
     )
     (out_dir / "informe.pdf").write_bytes(pdf)
     print("Informe-CV de una página: informe.pdf")

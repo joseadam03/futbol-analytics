@@ -714,12 +714,14 @@ def player_report_pdf(
     Cabecera, tres columnas de datos y fila de mapas en coordenadas
     calcadas de una referencia real (posiciones exactas), con la paleta
     de esa misma referencia — pero solo con datos reales ya calculados en
-    metrics.py/narrative.py/fit.py. `bio` (edad/nacionalidad/altura, de
-    TheSportsDB — pie preferido no está en ninguna fuente ya integrada,
-    así que ese campo siempre enseña "—") la resuelve quien llama, nunca
-    esta función: mismo patrón que `photo_url`/`crest_url`, sin llamadas
-    de red propias aquí. Sin "Overall Rating" inventado: el medidor sigue
-    siendo el percentil medio real, igual que antes de esta plantilla.
+    metrics.py/narrative.py/fit.py. `bio` (edad/nacionalidad/altura/pie)
+    la resuelve quien llama, nunca esta función: mismo patrón que
+    `photo_url`/`crest_url`, sin llamadas de red propias aquí — quien
+    llama decide si acude solo a TheSportsDB o también a Sportmonks
+    cuando la primera se queda corta (ver `app_common.bio_of`). Campo sin
+    dato en ninguna fuente disponible → "—", nunca inventado. Sin
+    "Overall Rating" inventado: el medidor sigue siendo el percentil
+    medio real, igual que antes de esta plantilla.
     """
     with plt.rc_context(_FONT_CONTEXT):  # type: ignore[arg-type]
         prow = table[table["player"] == player].iloc[0]
@@ -816,7 +818,7 @@ def player_report_pdf(
             ("EDAD", _edad_desde_fecha(bio.get("nacimiento"))),
             ("NACIONALIDAD", str(bio.get("nacionalidad") or "—")),
             ("ALTURA", str(bio.get("altura") or "—")),
-            ("PIE PREFERIDO", "—"),
+            ("PIE PREFERIDO", str(bio.get("pie") or "—")),
             ("EQUIPO", _truncate(str(prow["team"]), 20)),
             ("COMPETICIÓN", _truncate(comp_label, 20)),
         ]

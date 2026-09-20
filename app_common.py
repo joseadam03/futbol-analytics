@@ -129,14 +129,32 @@ def crest_of(team: str) -> str | None:
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def bio_of(display_name: str) -> dict | None:
-    """Biografía (edad/nacionalidad/altura) del informe de jugador, vía
-    TheSportsDB — mismo servicio que ya usa el Buscador. Sin match o con
-    el servicio caído no hay ficha: el informe lo enseña como "—"."""
+    """Biografía (edad/nacionalidad/altura/pie) del informe de jugador.
+    TheSportsDB primero (mismo servicio que ya usa el Buscador); si se
+    queda corto en altura o pie preferido (frecuente: TheSportsDB no
+    trae el pie preferido en ninguna ficha, y la altura no siempre la
+    rellena) y hay token de Sportmonks configurado, se completa con esa
+    segunda fuente — nunca se pisa un dato real de TheSportsDB, solo se
+    rellenan los huecos. Sin match en ninguna, o con los servicios
+    caídos, el informe lo enseña como "—"."""
     try:
         fichas = tsdb.search_players(display_name)
     except tsdb.ServiceUnavailable:
-        return None
-    return fichas[0] if fichas else None
+        fichas = []
+    bio = dict(fichas[0]) if fichas else {}
+
+    if (not bio.get("altura") or not bio.get("pie")) and sportmonks.available():
+        try:
+            extra = sportmonks.player_bio(display_name)
+        except sportmonks.ServiceUnavailable:
+            extra = None
+        if extra:
+            if not bio.get("altura") and extra.get("altura"):
+                bio["altura"] = extra["altura"]
+            if not bio.get("pie") and extra.get("pie"):
+                bio["pie"] = extra["pie"]
+
+    return bio or None
 
 
 @st.cache_data(show_spinner=False, ttl=3600)

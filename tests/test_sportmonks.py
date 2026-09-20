@@ -258,6 +258,44 @@ def test_player_transfers(monkeypatch):
     assert len(filas) == 2
 
 
+def test_player_bio_altura_y_pie_desde_metadata(monkeypatch):
+    # a diferencia de los demás payloads de este fichero (verificados
+    # contra una respuesta real de Sportmonks), este esquema de
+    # "metadata" sale de su documentación pública, no de una llamada real
+    # comprobada aquí — no hay token de prueba en este entorno para
+    # verificarlo en vivo. Por eso player_bio busca por tipo cuyo nombre
+    # contenga "foot" en vez de una clave exacta, y este test cubre ese
+    # margen de tolerancia.
+    payload = {
+        "data": {
+            "id": 37597771,
+            "height": 180,
+            "metadata": [{"type": {"name": "Preferred Foot"}, "values": "right"}],
+        }
+    }
+    monkeypatch.setattr(
+        sportmonks.requests,
+        "get",
+        make_get([FakeResponse(payload=SEARCH_PAYLOAD), FakeResponse(payload=payload)], []),
+    )
+    assert sportmonks.player_bio("Franculino") == {"altura": "180 cm", "pie": "Right"}
+
+
+def test_player_bio_sin_altura_ni_metadata(monkeypatch):
+    payload = {"data": {"id": 37597771, "height": None, "metadata": []}}
+    monkeypatch.setattr(
+        sportmonks.requests,
+        "get",
+        make_get([FakeResponse(payload=SEARCH_PAYLOAD), FakeResponse(payload=payload)], []),
+    )
+    assert sportmonks.player_bio("Franculino") == {"altura": None, "pie": None}
+
+
+def test_player_bio_sin_candidatos_da_none(monkeypatch):
+    monkeypatch.setattr(sportmonks.requests, "get", make_get([FakeResponse(payload={"data": []})], []))
+    assert sportmonks.player_bio("NadieDeVerdad") is None
+
+
 def test_player_ficha_sin_resultados_se_cachea_como_none(monkeypatch):
     monkeypatch.setattr(sportmonks.requests, "get", make_get([FakeResponse(payload={"data": []})], []))
     assert sportmonks.player_ficha("NadieDeVerdad") is None

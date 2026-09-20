@@ -234,6 +234,38 @@ def player_transfers(player_id: int) -> list[dict]:
     return _extract_transfers_from_payload(data)
 
 
+def player_bio(name: str) -> dict | None:
+    """Altura y pie preferido del primer jugador que case con `name` —
+    complementa a tsdb.py cuando TheSportsDB no trae esos campos (pasa
+    a menudo con la altura, y el pie preferido no está en ninguna ficha
+    de TheSportsDB). `height` es un campo directo del jugador (en cm),
+    verificado en la documentación de Sportmonks; el pie preferido vive
+    en el include `metadata`, así que se busca por tipo cuyo nombre
+    contenga "foot" en vez de una clave exacta — no hay token de prueba
+    en este entorno para verificar la respuesta real contra un jugador
+    con ese dato relleno.
+    """
+    candidatos = search_players(name)
+    if not candidatos:
+        return None
+    player_id = int(candidatos[0]["id"])
+    data = _get(f"/players/{player_id}", include="metadata.type")
+    ficha = data.get("data") or {}
+    altura = ficha.get("height")
+    pie = None
+    for m in ficha.get("metadata") or []:
+        if not isinstance(m, dict):
+            continue
+        tipo = (m.get("type") or {}).get("name")
+        if isinstance(tipo, str) and "foot" in tipo.lower():
+            pie = m.get("values") or m.get("value")
+            break
+    return {
+        "altura": f"{altura:.0f} cm" if isinstance(altura, (int, float)) else None,
+        "pie": str(pie).capitalize() if isinstance(pie, str) and pie else None,
+    }
+
+
 def player_ficha(name: str) -> dict | None:
     """Ficha con estadísticas de temporada del primer jugador que case con `name`.
 
