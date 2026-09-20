@@ -152,6 +152,48 @@ def test_position_role_nan():
     assert pd.isna(metrics.position_role(np.nan))
 
 
+def test_player_metrics_primary_position_es_la_mas_jugada_no_la_mas_activa():
+    # un jugador con 3 partidos de central (pocos eventos cada uno) y 1
+    # partido muy activo de lateral no puede salir con "lateral" como
+    # posición principal solo porque ese partido generó más eventos —
+    # visto en un informe real (Carles Puyol, mayoría de partidos de
+    # central, primary_position salía "Right Back" por un único partido
+    # con muchos más pases/duelos registrados).
+    def eventos_en(match_id, position, n):
+        return [
+            {
+                "match_id": match_id,
+                "period": 1,
+                "team": "Barcelona",
+                "player": "Carles Puyol",
+                "position": position,
+                "type": "Pressure",
+                "location": [50.0, 40.0],
+            }
+            for _ in range(n)
+        ]
+
+    rows = []
+    for match_id in range(1, 4):
+        rows += eventos_en(match_id, "Center Back", 10)
+    rows += eventos_en(4, "Right Back", 50)
+
+    events = pd.DataFrame(rows)
+    minutos = pd.DataFrame(
+        [
+            {
+                "player": "Carles Puyol",
+                "nickname": "Puyol",
+                "team": "Barcelona",
+                "minutes": 360.0,
+                "lineup_position": "Center Back",
+            }
+        ]
+    )
+    tabla = metrics.player_metrics(events, minutos, min_minutes=0)
+    assert tabla.iloc[0]["primary_position"] == "Center Back"
+
+
 def test_player_metrics_calcula_estadisticas_de_portero():
     # subtipos de evento "Goal Keeper" (goalkeeper_type) confirmados contra
     # datos reales de StatsBomb (data/cache/events_43_106.pkl, Mundial 2022),

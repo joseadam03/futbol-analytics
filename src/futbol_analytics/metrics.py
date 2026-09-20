@@ -195,7 +195,24 @@ def player_metrics(
 
     sums = ev.groupby("player")[list(flags.columns) + ["npxg", "xa"]].sum()
 
-    primary_pos = ev.dropna(subset=["position"]).groupby("player")["position"].agg(lambda s: s.mode().iloc[0])
+    # posición principal: moda POR PARTIDO y luego moda entre partidos (un
+    # voto por partido, no por evento). Con la moda directa sobre eventos
+    # individuales, un jugador que jugó la mayoría de partidos en una
+    # posición pero tuvo un partido muy activo (más pases/duelos/toques)
+    # en otra salía con la posición del partido más activo, no la más
+    # jugada — visto en un informe real (un central con más partidos de
+    # central que de lateral, primary_position salía "Right Back" por un
+    # único partido con muchos más eventos).
+    def _moda(s: pd.Series) -> object:
+        return s.mode().iloc[0]
+
+    primary_pos = (
+        ev.dropna(subset=["position"])
+        .groupby(["player", "match_id"])["position"]
+        .agg(_moda)
+        .groupby("player")
+        .agg(_moda)
+    )
 
     out = minutes.merge(sums, left_on="player", right_index=True, how="left")
     out = out.merge(primary_pos.rename("primary_position"), left_on="player", right_index=True, how="left")
