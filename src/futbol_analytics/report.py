@@ -681,6 +681,42 @@ def _panel_shot_map(events: pd.DataFrame, player: str):
     _plot(off_target, facecolor=_MUTED, edgecolor="none", alpha=0.4)
     _plot(on_target, facecolor=_TEXT, edgecolor="none", alpha=0.75)
     _plot(goals, facecolor=_RED, edgecolor=_BG, linewidth=1, alpha=0.95)
+
+    # leyenda + xG total incrustados en la propia figura del panel (no en
+    # la página): la fila de mapas no tiene hueco de sobra para una fila
+    # de texto aparte debajo de cada uno, pero la mitad del campo que no
+    # se usa (cerca del centro, lejos de la portería) sí tiene espacio
+    # libre dentro de la propia figura. Dos filas, no una: en una sola
+    # fila la leyenda de 3 items y el xG total se pisaban entre sí en un
+    # panel tan estrecho (visto en un informe real).
+    for i, (etiqueta, color) in enumerate((("Gol", _RED), ("A puerta", _TEXT), ("Fuera", _MUTED))):
+        lx = 0.08 + i * 0.32
+        ax.scatter([lx], [0.13], s=22, color=color, transform=ax.transAxes, zorder=5, clip_on=False)
+        ax.text(
+            lx + 0.04,
+            0.13,
+            etiqueta,
+            fontsize=4.6,
+            color=_MUTED,
+            transform=ax.transAxes,
+            va="center",
+            zorder=5,
+            clip_on=False,
+        )
+    xg_total = float(shots["shot_statsbomb_xg"].fillna(0).sum())
+    ax.text(
+        0.5,
+        0.03,
+        f"xG total: {xg_total:.1f}",
+        fontsize=5.3,
+        color=_TEXT,
+        weight="bold",
+        transform=ax.transAxes,
+        ha="center",
+        va="center",
+        zorder=5,
+        clip_on=False,
+    )
     return fig
 
 
@@ -922,45 +958,55 @@ def player_report_pdf(
             _t(ax_data, 0.97, yy, f"{pct:.0f}", 5.5, _ACCENT, "bold", ha="right")
             yy -= 0.115
 
-        full_metrics = viz.RADAR_METRICS.get(group, viz.RADAR_METRICS["MF"])
-        # abreviado solo para las etiquetas angulares del radar: la caja es
-        # estrecha (comparte fila con "datos clave" y "percentil medio") y
-        # con el nombre completo la etiqueta se salía de su propio hueco e
-        # invadía el panel vecino — el de la derecha además la tapaba a
-        # media palabra, por dibujarse encima en el orden de capas (visto
-        # en un informe real). Por nombre completo, no por palabra suelta:
-        # más predecible que sustituir palabra a palabra. El nombre entero
-        # ya está en la tabla "DATOS CLAVE" de al lado, así que aquí basta
-        # con que se reconozca de un vistazo. viz.RADAR_METRICS conserva las
-        # etiquetas completas para el resto de la app.
-        _RADAR_ABBR = {
-            "npxG": "npxG",
-            "Tiros": "Tiros",
-            "xA": "xA",
-            "Pases clave": "Clave",
-            "Regates": "Regate",
-            "Toques en área": "T.área",
-            "Conducciones progresivas": "Cond.",
-            "Pases progresivos": "P.prog",
-            "Presiones": "Pres.",
-            "Entradas+Int. (PAdj)": "E+Int",
-            "Recuperaciones": "Recup",
-            "Bloqueos": "Bloq.",
-            "Despejes": "Desp.",
-            "Paradas": "Parada",
-            "% de paradas": "% par.",
-            "Salidas": "Salida",
-            "Recogidas": "Recog.",
-            "Puños": "Puños",
-            "% de pase": "% pase",
-        }
+        if group == "GK":
+            full_metrics = viz.RADAR_METRICS.get(group, viz.RADAR_METRICS["MF"])
+            # abreviado solo para las etiquetas angulares del radar: la caja
+            # es estrecha (comparte fila con "datos clave" y "percentil
+            # medio") y con el nombre completo la etiqueta se salía de su
+            # propio hueco e invadía el panel vecino — el de la derecha
+            # además la tapaba a media palabra, por dibujarse encima en el
+            # orden de capas (visto en un informe real). Por nombre
+            # completo, no por palabra suelta: más predecible que sustituir
+            # palabra a palabra. El nombre entero ya está en la tabla
+            # "DATOS CLAVE" de al lado, así que aquí basta con que se
+            # reconozca de un vistazo. viz.RADAR_METRICS conserva las
+            # etiquetas completas para el resto de la app.
+            _RADAR_ABBR = {
+                "Paradas": "Parada",
+                "% de paradas": "% par.",
+                "Salidas": "Salida",
+                "Recogidas": "Recog.",
+                "Puños": "Puños",
+                "% de pase": "% pase",
+                "Pases progresivos": "P.prog",
+            }
 
-        def _abbr(label: str) -> str:
-            limpio = label.replace("\n", " ")
-            return _RADAR_ABBR.get(limpio, limpio[:6])
+            def _abbr(label: str) -> str:
+                limpio = label.replace("\n", " ")
+                return _RADAR_ABBR.get(limpio, limpio[:6])
 
-        radar_labels = [_abbr(lab) for _, lab in full_metrics]
-        radar_values = [float(prow[c]) if pd.notna(prow.get(c)) else 0.0 for c, _ in full_metrics]
+            radar_labels = [_abbr(lab) for _, lab in full_metrics]
+            radar_values = [float(prow[c]) if pd.notna(prow.get(c)) else 0.0 for c, _ in full_metrics]
+        else:
+            # radar por categorías (no por métrica suelta) para jugadores de
+            # campo, como en la referencia — pero cada categoría es la
+            # media de percentiles YA calculados en metrics.py, nunca una
+            # nota puesta a ojo. "Defensa" usa PAdj (ya combina entradas +
+            # intercepciones ajustadas por posesión) en vez de sumarlas
+            # sueltas, para no contar dos veces lo mismo.
+            radar_categorias = {
+                "Pase": ["pass_pct_pct", "prog_passes_p90_pct"],
+                "Visión": ["xa_p90_pct", "key_passes_p90_pct"],
+                "Regate": ["dribbles_cmp_p90_pct", "prog_carries_p90_pct"],
+                "Definición": ["npxg_p90_pct", "shots_p90_pct"],
+                "Defensa": ["padj_tack_int_p90_pct", "blocks_p90_pct", "clearances_p90_pct"],
+                "Presión": ["pressures_p90_pct", "recoveries_p90_pct"],
+            }
+            radar_labels = list(radar_categorias.keys())
+            radar_values = []
+            for cols in radar_categorias.values():
+                vals = [float(prow[c]) for c in cols if pd.notna(prow.get(c))]
+                radar_values.append(sum(vals) / len(vals) if vals else 0.0)
         avg_percentile = float(np.mean(radar_values)) if radar_values else 0.0
 
         # más bajo que datos clave/percentil medio (0.18): con esa altura,
@@ -998,6 +1044,35 @@ def player_report_pdf(
         )
         _t(ax_rating, 0.50, 0.53, f"{avg_percentile:.0f}", 18, _TEXT, "bold", ha="center")
         _t(ax_rating, 0.50, 0.37, "/100", 6, _MUTED, "bold", ha="center")
+
+        # --- Confianza de datos: percentil de minutos jugados dentro del
+        # mismo grupo de comparación (misma fórmula que metrics.percentiles,
+        # calculada aquí porque "minutes" no es una de las métricas que ya
+        # trae percentilada la tabla) — más minutos, percentiles más
+        # fiables, no una nota puesta a ojo.
+        pool_col = str(prow.get("pct_basis") or "position_group")
+        mismo_grupo = table.loc[table[pool_col] == prow.get(pool_col), "minutes"]
+        minutos_pct = float((mismo_grupo <= prow["minutes"]).mean() * 100) if len(mismo_grupo) else 50.0
+        dots_llenos = min(5, max(1, int(minutos_pct // 20) + 1))
+        if dots_llenos <= 1:
+            nivel_confianza = "Baja"
+        elif dots_llenos <= 2:
+            nivel_confianza = "Media-baja"
+        elif dots_llenos == 3:
+            nivel_confianza = "Media"
+        elif dots_llenos == 4:
+            nivel_confianza = "Alta"
+        else:
+            nivel_confianza = "Muy alta"
+        for i in range(5):
+            dx = 0.5 + (i - 2) * 0.075
+            lleno = i < dots_llenos
+            ax_rating.add_patch(
+                Circle((dx, 0.14), 0.022, fill=lleno, fc=_ACCENT, ec=_ACCENT, lw=1.0)
+                if lleno
+                else Circle((dx, 0.14), 0.022, fill=False, ec=_MUTED, lw=1.0)
+            )
+        _t(ax_rating, 0.50, 0.045, f"Confianza: {nivel_confianza}", 5.3, _MUTED, "bold", ha="center")
 
         # --- Mapas (6 paneles reales, sin tarjeta: directos sobre el fondo) ---
         mapas = [
