@@ -206,7 +206,7 @@ pydeck==0.9.3
     # via streamlit
 pygments==2.21.0
     # via pytest
-pyjwt==2.13.0
+pyjwt==2.14.0
     # via streamlit-authenticator
 pyparsing==3.3.2
     # via matplotlib
